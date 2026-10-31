@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scanner & Gestion de Stock</title>
+
+    <!-- Inclusion de la bibliothèque de scan de code-barres Html5-QRCode -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        body {
+            background-color: #f4f6f8;
+            margin: 0;
+            padding: 16px;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            font-size: 1.4rem;
+            margin-top: 0;
+            color: #1e293b;
+        }
+        .card {
+            background: #ffffff;
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 16px;
+        }
+        #reader {
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #000;
+        }
+        .form-group {
+            margin-bottom: 12px;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 4px;
+            font-size: 0.9rem;
+        }
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+        .btn-group {
+            display: flex;
+            gap: 8px;
+        }
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-primary { background-color: #2563eb; color: white; }
+        .btn-success { background-color: #16a34a; color: white; }
+        .btn-danger { background-color: #dc2626; color: white; }
+        .btn-secondary { background-color: #64748b; color: white; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.9rem;
+        }
+        th {
+            background-color: #f8fafc;
+            color: #475569;
+        }
+        .badge {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: bold;
+        }
+        .actions-btn {
+            background: transparent;
+            color: #dc2626;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>📦 Scanner de Stock</h1>
+
+    <!-- Zone Scanner Caméra -->
+    <div class="card">
+        <div id="reader"></div>
+        <div style="margin-top: 10px;" class="btn-group">
+            <button id="btn-start" class="btn-primary" onclick="startScanner()">📷 Activer la caméra</button>
+            <button id="btn-stop" class="btn-secondary" onclick="stopScanner()" disabled>⏹️ Arrêter</button>
+        </div>
+    </div>
+
+    <!-- Saisie / Validation -->
+    <div class="card">
+        <div class="form-group">
+            <label for="barcode">Code-barres scanné ou saisi :</label>
+            <input type="text" id="barcode" placeholder="Ex: 3017620422003" />
+        </div>
+        <div class="form-group">
+            <label for="quantity">Quantité à ajouter :</label>
+            <input type="number" id="quantity" value="1" min="1" />
+        </div>
+        <button class="btn-success" onclick="ajouterProduit()">➕ Enregistrer / Cumuler</button>
+    </div>
+
+    <!-- Liste & Récapitulatif -->
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h2 style="font-size: 1.1rem; margin: 0;">Produits enregistrés</h2>
+            <button class="btn-secondary" style="padding: 6px 12px; flex: none;" onclick="exporterCSV()">📥 Exporter CSV</button>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Code-barres</th>
+                    <th>Qté Totale</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="stock-list">
+                <!-- Rempli dynamiquement -->
+            </tbody>
+        </table>
+        
+        <div style="margin-top: 15px; text-align: right;">
+            <button class="btn-danger" style="padding: 6px 12px; font-size: 0.8rem; flex: none;" onclick="effacerTout()">🗑️ Vider le stock</button>
+        </div>
+    </div>
+
+    <script>
+        let html5QrCode = null;
+        // Chargement du stock depuis le localStorage (si disponible)
+        let stock = JSON.parse(localStorage.getItem('inventaire_stock')) || {};
+
+        // Afficher la liste au démarrage
+        renderTable();
+
+        function startScanner() {
+            html5QrCode = new Html5Qrcode("reader");
+            const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+
+            html5QrCode.start(
+                { facingMode: "environment" }, // Utilise la caméra arrière du smartphone
+                config,
+                onScanSuccess
+            ).then(() => {
+                document.getElementById('btn-start').disabled = true;
+                document.getElementById('btn-stop').disabled = false;
+            }).catch(err => {
+                alert("Erreur d'accès à la caméra : " + err);
+            });
+        }
+
+        function stopScanner() {
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    document.getElementById('btn-start').disabled = false;
+                    document.getElementById('btn-stop').disabled = true;
+                });
+            }
+        }
+
+        function onScanSuccess(decodedText) {
+            // Remplir le champ code-barres et émettre un retour sonore (optionnel)
+            document.getElementById('barcode').value = decodedText;
+            
+            // Proposer un petit retour visuel/vibreur
+            if (navigator.vibrate) {
+                navigator.vibrate(100);
+            }
+        }
+
+        function ajouterProduit() {
+            const barcode = document.getElementById('barcode').value.trim();
+            const quantity = parseInt(document.getElementById('quantity').value, 10);
+
+            if (!barcode) {
+                alert("Veuillez scanner ou saisir un code-barres.");
+                return;
+            }
+
+            if (isNaN(quantity) || quantity <= 0) {
+                alert("Veuillez saisir une quantité valide.");
+                return;
+            }
+
+            // CONCATÉNATION / CUMUL DES QUANTITÉS
+            if (stock[barcode]) {
+                stock[barcode] += quantity;
+            } else {
+                stock[barcode] = quantity;
+            }
+
+            // Sauvegarde locale
+            localStorage.setItem('inventaire_stock', JSON.stringify(stock));
+
+            // Réinitialisation des champs & mise à jour
+            document.getElementById('barcode').value = '';
+            document.getElementById('quantity').value = 1;
+            renderTable();
+        }
+
+        function supprimerCode(barcode) {
+            if (confirm(`Supprimer le code-barres ${barcode} ?`)) {
+                delete stock[barcode];
+                localStorage.setItem('inventaire_stock', JSON.stringify(stock));
+                renderTable();
+            }
+        }
+
+        function effacerTout() {
+            if (confirm("Voulez-vous vraiment effacer tout l'inventaire ?")) {
+                stock = {};
+                localStorage.removeItem('inventaire_stock');
+                renderTable();
+            }
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('stock-list');
+            tbody.innerHTML = '';
+
+            const keys = Object.keys(stock);
+            if (keys.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#94a3b8;">Aucun produit scanné</td></tr>';
+                return;
+            }
+
+            keys.forEach(barcode => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><code>${barcode}</code></td>
+                    <td><span class="badge">${stock[barcode]}</span></td>
+                    <td><button class="actions-btn" onclick="supprimerCode('${barcode}')" title="Supprimer">❌</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function exporterCSV() {
+            const keys = Object.keys(stock);
+            if (keys.length === 0) {
+                alert("Aucune donnée à exporter.");
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,Code_Barres;Quantite\n";
+            keys.forEach(code => {
+                csvContent += `${code};${stock[code]}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `inventaire_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
