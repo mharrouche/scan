@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Stock, Ventes & Noms Produits</title>
+    <title>Gestion Stock, Ventes & Imports</title>
 
     <!-- Inclusion de la bibliothèque de scan Html5-QRCode -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -163,7 +163,7 @@
 </head>
 <body>
 
-    <h1>📦 Gestion Stock, Ventes & Produits</h1>
+    <h1>📦 Gestion Stock, Ventes & Imports</h1>
 
     <!-- Scanner -->
     <div class="card">
@@ -284,9 +284,17 @@
             </table>
         </div>
 
-        <div style="margin-top: 15px; display: flex; gap: 8px;">
-            <button class="btn-secondary" style="font-size: 0.85rem;" onclick="exporterCSV()">📥 Exporter CSV</button>
-            <button class="btn-danger" style="font-size: 0.85rem;" onclick="effacerTout()">🗑️ Tout effacer</button>
+        <!-- Actions d'Export / Import / Effacement -->
+        <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; gap: 8px;">
+                <button class="btn-secondary" style="font-size: 0.85rem;" onclick="exporterCSV()">📥 Exporter CSV</button>
+                <button class="btn-secondary" style="font-size: 0.85rem;" onclick="exporterXML()">📥 Exporter XML</button>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn-info" style="font-size: 0.85rem;" onclick="document.getElementById('import-file-input').click()">📤 Importer Fichier (CSV/XML)</button>
+                <input type="file" id="import-file-input" accept=".csv, .xml" style="display: none;" onchange="importerFichier(event)" />
+                <button class="btn-danger" style="font-size: 0.85rem; flex: 0.6;" onclick="effacerTout()">🗑️ Vider</button>
+            </div>
         </div>
     </div>
 
@@ -323,7 +331,6 @@
             if (navigator.vibrate) navigator.vibrate(100);
         }
 
-        // Remplit automatiquement le nom du produit et le prix si le code existe déjà
         function verifierProduitExistant() {
             const barcode = document.getElementById('barcode').value.trim();
             if (stock[barcode]) {
@@ -366,7 +373,7 @@
             if (!stock[barcode]) { 
                 stock[barcode] = { qty: 0, name: productName, lastPrice: price }; 
             } else {
-                stock[barcode].name = productName; // Met à jour le nom si modifié
+                stock[barcode].name = productName;
             }
 
             if (type === 'ajout') {
@@ -431,7 +438,6 @@
             sauvegarderEtActualiser();
         }
 
-        // Éditer un produit du stock
         function editerStock(barcode) {
             const item = stock[barcode];
             const nouveauNom = prompt(`Modifier le NOM du produit (${barcode}) :`, item.name || "");
@@ -554,7 +560,6 @@
         }
 
         function renderTables() {
-            // Stock
             const tbodyStock = document.getElementById('stock-list');
             const searchFilter = document.getElementById('search-input').value.toLowerCase().trim();
             tbodyStock.innerHTML = '';
@@ -586,7 +591,6 @@
                 });
             }
 
-            // Calculs financiers
             let totalCA = 0, totalCredit = 0;
             historyLog.forEach(h => {
                 if (h.type === 'VENTE' || h.type === 'ACOMPTE') totalCA += h.total;
@@ -596,7 +600,6 @@
             document.getElementById('stat-ca').innerText = totalCA.toFixed(2) + " €";
             document.getElementById('stat-credit').innerText = totalCredit.toFixed(2) + " €";
 
-            // Historique
             const tbodyHistory = document.getElementById('history-list');
             tbodyHistory.innerHTML = '';
             if (historyLog.length === 0) {
@@ -616,7 +619,6 @@
                 });
             }
 
-            // Crédits
             const tbodyCredit = document.getElementById('credit-list');
             tbodyCredit.innerHTML = '';
             if (creditsLog.length === 0) {
@@ -633,14 +635,109 @@
             }
         }
 
+        // Export CSV
         function exporterCSV() {
-            if (historyLog.length === 0) { alert("Rien à exporter."); return; }
+            if (historyLog.length === 0 && Object.keys(stock).length === 0) { alert("Rien à exporter."); return; }
             let csv = "ID;Date;Client;Type;Nom_Produit;Code_Barres;Quantite;Prix_Unitaire;Total_Euros\n";
             historyLog.forEach(h => csv += `${h.id};${h.date};${h.client};${h.type};"${h.productName || ''}";${h.barcode};${h.qty};${h.price};${h.total}\n`);
             let link = document.createElement("a");
             link.setAttribute("href", encodeURI("data:text/csv;charset=utf-8," + csv));
             link.setAttribute("download", `export_stock_${new Date().toISOString().slice(0,10)}.csv`);
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        }
+
+        // Export XML
+        function exporterXML() {
+            let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<inventaire>\n  <produits>\n';
+            Object.keys(stock).forEach(code => {
+                const item = stock[code];
+                xml += `    <produit>\n      <code_barres>${code}</code_barres>\n      <nom>${item.name || ''}</nom>\n      <quantite>${item.qty}</quantite>\n      <prix_unitaire>${item.lastPrice || 0}</prix_unitaire>\n    </produit>\n`;
+            });
+            xml += '  </produits>\n</inventaire>';
+
+            let link = document.createElement("a");
+            link.setAttribute("href", encodeURI("data:text/xml;charset=utf-8," + xml));
+            link.setAttribute("download", `export_stock_${new Date().toISOString().slice(0,10)}.xml`);
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        }
+
+        // --- IMPORTATION DU FICHIER (CSV ou XML) ---
+        function importerFichier(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                if (file.name.endsWith('.xml')) {
+                    traiterXML(content);
+                } else {
+                    traiterCSV(content);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function traiterXML(xmlString) {
+            try {
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlString, "text/xml");
+                const produits = xmlDoc.getElementsByTagName("produit");
+
+                let ajoutsCount = 0;
+                for (let i = 0; i < produits.length; i++) {
+                    const code = produits[i].getElementsByTagName("code_barres")[0]?.textContent || "";
+                    const nom = produits[i].getElementsByTagName("nom")[0]?.textContent || "Produit sans nom";
+                    const qty = parseInt(produits[i].getElementsByTagName("quantite")[0]?.textContent || "0", 10);
+                    const prix = parseFloat(produits[i].getElementsByTagName("prix_unitaire")[0]?.textContent || "0");
+
+                    if (code) {
+                        if (!stock[code]) {
+                            stock[code] = { qty: qty, name: nom, lastPrice: prix };
+                        } else {
+                            stock[code].qty += qty;
+                            stock[code].name = nom;
+                            if (prix > 0) stock[code].lastPrice = prix;
+                        }
+                        ajoutsCount++;
+                    }
+                }
+                sauvegarderEtActualiser();
+                alert(`Importation XML réussie : ${ajoutsCount} produit(s) traité(s) !`);
+            } catch (err) {
+                alert("Erreur lors de la lecture du fichier XML : " + err);
+            }
+        }
+
+        function traiterCSV(csvString) {
+            try {
+                const lines = csvString.split('\n');
+                let count = 0;
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+                    const cols = line.split(';');
+                    if (cols.length >= 6) {
+                        const nom = cols[4].replace(/"/g, '') || "Produit sans nom";
+                        const code = cols[5];
+                        const qty = parseInt(cols[6], 10) || 0;
+                        const prix = parseFloat(cols[7]) || 0;
+
+                        if (code && code !== 'N/A') {
+                            if (!stock[code]) {
+                                stock[code] = { qty: qty, name: nom, lastPrice: prix };
+                            } else {
+                                stock[code].name = nom;
+                            }
+                            count++;
+                        }
+                    }
+                }
+                sauvegarderEtActualiser();
+                alert(`Importation CSV réussie : ${count} ligne(s) importée(s) !`);
+            } catch (err) {
+                alert("Erreur lors du traitement du CSV : " + err);
+            }
         }
     </script>
 </body>
