@@ -3,10 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Stock, Ventes & Imports</title>
+    <title>Gestion Stock & Pricelist Excel Pro</title>
 
     <!-- Inclusion de la bibliothèque de scan Html5-QRCode -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    
+    <!-- Inclusion de la bibliothèque SheetJS pour lire/écrire les fichiers Excel (.xlsx) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <style>
         * {
@@ -106,6 +109,7 @@
             display: flex;
             gap: 4px;
             margin-bottom: 12px;
+            overflow-x: auto;
         }
         .tab-btn {
             background: #e2e8f0;
@@ -116,6 +120,7 @@
             font-size: 0.8rem;
             cursor: pointer;
             flex: 1;
+            white-space: nowrap;
         }
         .tab-btn.active {
             background: #2563eb;
@@ -163,7 +168,29 @@
 </head>
 <body>
 
-    <h1>📦 Gestion Stock, Ventes & Imports</h1>
+    <h1>📦 Stock & Pricelist Excel Pro</h1>
+
+    <!-- Gestion des Importations Excel -->
+    <div class="card" style="background: #f0fdf4; border: 1px solid #bbf7d0;">
+        <h3 style="margin-top:0; font-size:1rem; color:#166534;">📊 Gestion des fichiers Excel (.xlsx / .xls)</h3>
+        
+        <!-- 1. Import Pricelist -->
+        <div style="margin-bottom: 10px;">
+            <p style="font-size:0.8rem; color:#475569; margin:0 0 4px 0;"><b>1. Charger la Pricelist de référence :</b> (Col A = Nom, Col F = Prix DZD HT, Col H = Code-barres)</p>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button class="btn-success" style="font-size:0.85rem; padding:8px;" onclick="document.getElementById('pricelist-file-input').click()">📁 Charger Pricelist .xlsx</button>
+                <input type="file" id="pricelist-file-input" accept=".xlsx, .xls" style="display: none;" onchange="importerPricelistExcel(event)" />
+                <span id="pricelist-status" style="font-size: 0.8rem; color: #16a34a; font-weight: bold;">Aucune pricelist chargée</span>
+            </div>
+        </div>
+
+        <!-- 2. Import Inventaire Précédent -->
+        <div>
+            <p style="font-size:0.8rem; color:#475569; margin:0 0 4px 0;"><b>2. Restaurer un inventaire exporté :</b> (Fichier .xlsx d'historique)</p>
+            <button class="btn-info" style="font-size:0.85rem; padding:8px; width:100%;" onclick="document.getElementById('inventory-file-input').click()">📤 Importer un inventaire exporté (.xlsx)</button>
+            <input type="file" id="inventory-file-input" accept=".xlsx, .xls" style="display: none;" onchange="importerInventaireExcel(event)" />
+        </div>
+    </div>
 
     <!-- Scanner -->
     <div class="card">
@@ -182,19 +209,19 @@
         </div>
         <div class="form-group">
             <label for="barcode">Code-barres scanné ou saisi :</label>
-            <input type="text" id="barcode" placeholder="Scannez ou tapez le code..." onblur="verifierProduitExistant()" />
+            <input type="text" id="barcode" placeholder="Scannez ou tapez le code..." oninput="rechercherParCodeBarres()" onblur="rechercherParCodeBarres()" />
         </div>
         <div class="form-group">
             <label for="product-name">Nom du Produit :</label>
-            <input type="text" id="product-name" placeholder="Ex: Filtre à air, Pneu..." />
+            <input type="text" id="product-name" placeholder="Rempli auto via la pricelist..." />
         </div>
         <div class="form-group">
             <label for="quantity">Quantité :</label>
             <input type="number" id="quantity" value="1" min="1" />
         </div>
         <div class="form-group">
-            <label for="price">Prix unitaire (€) :</label>
-            <input type="number" id="price" value="0.00" step="0.01" min="0" placeholder="Prix" />
+            <label for="price">Prix unitaire (DZD) :</label>
+            <input type="number" id="price" value="0.00" step="0.01" min="0" placeholder="Prix auto" />
         </div>
         <div class="form-group">
             <label for="payment-status">Statut du paiement :</label>
@@ -221,11 +248,11 @@
                 <div class="stat-label">Articles en stock</div>
             </div>
             <div class="stat-box">
-                <div class="stat-value" id="stat-ca" style="color: #16a34a;">0.00 €</div>
+                <div class="stat-value" id="stat-ca" style="color: #16a34a;">0.00 DZD</div>
                 <div class="stat-label">CA Encaissé</div>
             </div>
             <div class="stat-box" style="grid-column: span 2;">
-                <div class="stat-value" id="stat-credit" style="color: #d97706;">0.00 €</div>
+                <div class="stat-value" id="stat-credit" style="color: #d97706;">0.00 DZD</div>
                 <div class="stat-label">Total Crédits Clients</div>
             </div>
         </div>
@@ -246,7 +273,7 @@
                     <tr>
                         <th>Produit / Code</th>
                         <th>Qté</th>
-                        <th>Prix U.</th>
+                        <th>Prix U. (DZD)</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -284,26 +311,20 @@
             </table>
         </div>
 
-        <!-- Actions d'Export / Import / Effacement -->
         <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 8px;">
-            <div style="display: flex; gap: 8px;">
-                <button class="btn-secondary" style="font-size: 0.85rem;" onclick="exporterCSV()">📥 Exporter CSV</button>
-                <button class="btn-secondary" style="font-size: 0.85rem;" onclick="exporterXML()">📥 Exporter XML</button>
-            </div>
-            <div style="display: flex; gap: 8px;">
-                <button class="btn-info" style="font-size: 0.85rem;" onclick="document.getElementById('import-file-input').click()">📤 Importer Fichier (CSV/XML)</button>
-                <input type="file" id="import-file-input" accept=".csv, .xml" style="display: none;" onchange="importerFichier(event)" />
-                <button class="btn-danger" style="font-size: 0.85rem; flex: 0.6;" onclick="effacerTout()">🗑️ Vider</button>
-            </div>
+            <button class="btn-secondary" style="font-size: 0.85rem;" onclick="exporterExcel()">📥 Exporter l'inventaire en .xlsx</button>
+            <button class="btn-danger" style="font-size: 0.85rem;" onclick="effacerTout()">🗑️ Tout effacer</button>
         </div>
     </div>
 
     <script>
         let html5QrCode = null;
-        let stock = JSON.parse(localStorage.getItem('pro_stock_v4')) || {};
-        let historyLog = JSON.parse(localStorage.getItem('pro_history_v4')) || [];
-        let creditsLog = JSON.parse(localStorage.getItem('pro_credits_v4')) || [];
+        let pricelist = JSON.parse(localStorage.getItem('pro_pricelist_excel')) || {};
+        let stock = JSON.parse(localStorage.getItem('pro_stock_v8')) || {};
+        let historyLog = JSON.parse(localStorage.getItem('pro_history_v8')) || [];
+        let creditsLog = JSON.parse(localStorage.getItem('pro_credits_v8')) || [];
 
+        verifierStatutPricelist();
         renderTables();
 
         function startScanner() {
@@ -327,20 +348,141 @@
 
         function onScanSuccess(decodedText) {
             document.getElementById('barcode').value = decodedText;
-            verifierProduitExistant();
+            rechercherParCodeBarres();
             if (navigator.vibrate) navigator.vibrate(100);
         }
 
-        function verifierProduitExistant() {
+        function rechercherParCodeBarres() {
             const barcode = document.getElementById('barcode').value.trim();
-            if (stock[barcode]) {
-                if (stock[barcode].name) {
-                    document.getElementById('product-name').value = stock[barcode].name;
-                }
-                if (stock[barcode].lastPrice) {
-                    document.getElementById('price').value = stock[barcode].lastPrice;
-                }
+            if (!barcode) return;
+
+            if (pricelist[barcode]) {
+                document.getElementById('product-name').value = pricelist[barcode].name;
+                document.getElementById('price').value = pricelist[barcode].price;
+            } else if (stock[barcode]) {
+                if (stock[barcode].name) document.getElementById('product-name').value = stock[barcode].name;
+                if (stock[barcode].lastPrice) document.getElementById('price').value = stock[barcode].lastPrice;
             }
+        }
+
+        // --- 1. IMPORTATION DE LA PRICELIST EXCEL ---
+        // Col A (Index 0) = Description, Col F (Index 5) = Prix DZD HT, Col H (Index 7) = Code-barres
+        function importerPricelistExcel(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    pricelist = {};
+                    let count = 0;
+
+                    for (let i = 0; i < rows.length; i++) {
+                        const row = rows[i];
+                        if (!row || row.length === 0) continue;
+
+                        let desc = row[0] ? String(row[0]).trim() : '';
+                        let prixVal = row[5] !== undefined ? parseFloat(String(row[5]).replace(',', '.')) : 0;
+                        let barcode = row[7] ? String(row[7]).trim() : '';
+                        let prix = isNaN(prixVal) ? 0 : prixVal;
+
+                        if (barcode && barcode.toLowerCase() !== 'code barre' && barcode.toLowerCase() !== 'code_barres') {
+                            pricelist[barcode] = {
+                                name: desc || 'Produit sans description',
+                                price: prix
+                            };
+                            count++;
+                        }
+                    }
+
+                    localStorage.setItem('pro_pricelist_excel', JSON.stringify(pricelist));
+                    verifierStatutPricelist();
+                    alert(`Pricelist importée avec succès ! ${count} articles référencés.`);
+                } catch (err) {
+                    alert("Erreur de lecture du fichier Excel : " + err);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function verifierStatutPricelist() {
+            let count = Object.keys(pricelist).length;
+            const statusEl = document.getElementById('pricelist-status');
+            if (count > 0) {
+                statusEl.innerText = `✅ ${count} références en mémoire`;
+                statusEl.style.color = "#16a34a";
+            } else {
+                statusEl.innerText = "⚠️ Aucune pricelist chargée";
+                statusEl.style.color = "#d97706";
+            }
+        }
+
+        // --- 2. IMPORTATION D'UN INVENTAIRE EXPORTÉ PRÉCÉDEMMENT (.xlsx) ---
+        function importerInventaireExcel(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    // Lecture sous forme d'objets (en se basant sur les en-têtes de colonnes de l'export)
+                    const rows = XLSX.utils.sheet_to_json(worksheet);
+
+                    let importedCount = 0;
+                    rows.forEach(row => {
+                        let date = row["Date"] || new Date().toLocaleString();
+                        let client = row["Client"] || "Client Inconnu";
+                        let type = row["Type Mouvement"] || "ACHAT";
+                        let productName = row["Nom du Produit"] || "Produit sans nom";
+                        let barcode = row["Code-barres"] ? String(row["Code-barres"]).trim() : "";
+                        let qty = parseInt(row["Quantité"], 10) || 0;
+                        let price = parseFloat(row["Prix Unitaire (DZD)"]) || 0;
+                        let total = parseFloat(row["Total (DZD)"]) || (qty * price);
+
+                        if (barcode && barcode !== "N/A") {
+                            // Reconstituer le stock global actuel
+                            if (!stock[barcode]) {
+                                stock[barcode] = { qty: 0, name: productName, lastPrice: price };
+                            }
+                            stock[barcode].name = productName;
+                            if (type === "ACHAT") {
+                                stock[barcode].qty += qty;
+                            } else if (type.includes("VENTE")) {
+                                stock[barcode].qty -= qty;
+                            }
+                            stock[barcode].lastPrice = price;
+                        }
+
+                        // Ajouter à l'historique
+                        historyLog.push({
+                            id: Date.now() + Math.random(),
+                            date: date,
+                            client: client,
+                            type: type,
+                            barcode: barcode,
+                            productName: productName,
+                            qty: qty,
+                            price: price,
+                            total: total
+                        });
+                        importedCount++;
+                    });
+
+                    sauvegarderEtActualiser();
+                    alert(`Inventaire importé avec succès ! ${importedCount} mouvements restaurés.`);
+                } catch (err) {
+                    alert("Erreur lors de l'importation de l'inventaire : " + err);
+                }
+            };
+            reader.readAsArrayBuffer(file);
         }
 
         function switchTab(tabName) {
@@ -447,7 +589,7 @@
             if (nouvelleQtyStr === null) return;
             const nouvelleQty = parseInt(nouvelleQtyStr, 10);
 
-            const nouveauPrixStr = prompt(`Modifier le PRIX UNITAIRE (€) :`, item.lastPrice);
+            const nouveauPrixStr = prompt(`Modifier le PRIX UNITAIRE (DZD) :`, item.lastPrice);
             if (nouveauPrixStr === null) return;
             const nouveauPrix = parseFloat(nouveauPrixStr);
 
@@ -476,7 +618,7 @@
             if (nouvelleQtyStr === null) return;
             const nouvelleQty = parseInt(nouvelleQtyStr, 10);
 
-            const nouveauPrixStr = prompt("Prix unitaire (€) :", h.price || 0);
+            const nouveauPrixStr = prompt("Prix unitaire (DZD) :", h.price || 0);
             if (nouveauPrixStr === null) return;
             const nouveauPrix = parseFloat(nouveauPrixStr);
 
@@ -495,7 +637,7 @@
             if (index === -1) return;
             const credit = creditsLog[index];
 
-            const paiementStr = prompt(`Montant réglé par ${credit.client} (Total dû : ${credit.amount.toFixed(2)} €) :`, credit.amount);
+            const paiementStr = prompt(`Montant réglé par ${credit.client} (Total dû : ${credit.amount.toFixed(2)} DZD) :`, credit.amount);
             if (paiementStr === null) return;
             const paiement = parseFloat(paiementStr);
 
@@ -539,17 +681,17 @@
         function effacerTout() {
             if (confirm("Voulez-vous vraiment TOUT réinitialiser ?")) {
                 stock = {}; historyLog = []; creditsLog = [];
-                localStorage.removeItem('pro_stock_v4');
-                localStorage.removeItem('pro_history_v4');
-                localStorage.removeItem('pro_credits_v4');
+                localStorage.removeItem('pro_stock_v8');
+                localStorage.removeItem('pro_history_v8');
+                localStorage.removeItem('pro_credits_v8');
                 renderTables();
             }
         }
 
         function sauvegarderEtActualiser() {
-            localStorage.setItem('pro_stock_v4', JSON.stringify(stock));
-            localStorage.setItem('pro_history_v4', JSON.stringify(historyLog));
-            localStorage.setItem('pro_credits_v4', JSON.stringify(creditsLog));
+            localStorage.setItem('pro_stock_v8', JSON.stringify(stock));
+            localStorage.setItem('pro_history_v8', JSON.stringify(historyLog));
+            localStorage.setItem('pro_credits_v8', JSON.stringify(creditsLog));
 
             document.getElementById('barcode').value = '';
             document.getElementById('product-name').value = '';
@@ -582,7 +724,7 @@
                     tbodyStock.innerHTML += `<tr>
                         <td><b>${item.name || 'Sans nom'}</b><br><code style="font-size:0.75rem; color:#64748b;">${barcode}</code></td>
                         <td><span class="badge">${item.qty}</span></td>
-                        <td>${item.lastPrice.toFixed(2)} €</td>
+                        <td>${item.lastPrice.toFixed(2)} DZD</td>
                         <td>
                             <button class="btn-action-icon" onclick="editerStock('${barcode}')" title="Modifier">✏️</button>
                             <button class="btn-action-icon" onclick="supprimerStock('${barcode}')" title="Supprimer">❌</button>
@@ -597,8 +739,8 @@
             });
             creditsLog.forEach(c => totalCredit += c.amount);
 
-            document.getElementById('stat-ca').innerText = totalCA.toFixed(2) + " €";
-            document.getElementById('stat-credit').innerText = totalCredit.toFixed(2) + " €";
+            document.getElementById('stat-ca').innerText = totalCA.toFixed(2) + " DZD";
+            document.getElementById('stat-credit').innerText = totalCredit.toFixed(2) + " DZD";
 
             const tbodyHistory = document.getElementById('history-list');
             tbodyHistory.innerHTML = '';
@@ -610,7 +752,7 @@
                     tbodyHistory.innerHTML += `<tr>
                         <td><span style="font-size:0.7rem; color:#64748b;">${h.date}</span><br><b>${h.client}</b></td>
                         <td><span class="badge ${bClass}">${h.type}</span><br><b>${h.productName || 'N/A'}</b> <code style="font-size:0.7rem;">(${h.barcode})</code></td>
-                        <td>${h.qty} x ${h.price ? h.price.toFixed(2) : 0}€<br><b>${h.total.toFixed(2)} €</b></td>
+                        <td>${h.qty} x ${h.price ? h.price.toFixed(2) : 0}DZD<br><b>${h.total.toFixed(2)} DZD</b></td>
                         <td>
                             <button class="btn-action-icon" onclick="editerHistorique(${h.id})" title="Modifier">✏️</button>
                             <button class="btn-action-icon" onclick="supprimerHistorique(${h.id})" title="Supprimer">❌</button>
@@ -628,116 +770,33 @@
                     tbodyCredit.innerHTML += `<tr>
                         <td><b>${c.client}</b></td>
                         <td>${c.detail}</td>
-                        <td style="color:#d97706; font-weight:bold;">${c.amount.toFixed(2)} €</td>
+                        <td style="color:#d97706; font-weight:bold;">${c.amount.toFixed(2)} DZD</td>
                         <td><button class="btn-success" style="padding:4px 8px; font-size:0.75rem;" onclick="reglerCredit(${c.id})">💵 Régler</button></td>
                     </tr>`;
                 });
             }
         }
 
-        // Export CSV
-        function exporterCSV() {
-            if (historyLog.length === 0 && Object.keys(stock).length === 0) { alert("Rien à exporter."); return; }
-            let csv = "ID;Date;Client;Type;Nom_Produit;Code_Barres;Quantite;Prix_Unitaire;Total_Euros\n";
-            historyLog.forEach(h => csv += `${h.id};${h.date};${h.client};${h.type};"${h.productName || ''}";${h.barcode};${h.qty};${h.price};${h.total}\n`);
-            let link = document.createElement("a");
-            link.setAttribute("href", encodeURI("data:text/csv;charset=utf-8," + csv));
-            link.setAttribute("download", `export_stock_${new Date().toISOString().slice(0,10)}.csv`);
-            document.body.appendChild(link); link.click(); document.body.removeChild(link);
-        }
+        // --- EXPORTATION EXCEL (.xlsx) ---
+        function exporterExcel() {
+            if (historyLog.length === 0) { alert("Rien à exporter."); return; }
 
-        // Export XML
-        function exporterXML() {
-            let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<inventaire>\n  <produits>\n';
-            Object.keys(stock).forEach(code => {
-                const item = stock[code];
-                xml += `    <produit>\n      <code_barres>${code}</code_barres>\n      <nom>${item.name || ''}</nom>\n      <quantite>${item.qty}</quantite>\n      <prix_unitaire>${item.lastPrice || 0}</prix_unitaire>\n    </produit>\n`;
-            });
-            xml += '  </produits>\n</inventaire>';
+            const dataToExport = historyLog.map(h => ({
+                "Date": h.date,
+                "Client": h.client,
+                "Type Mouvement": h.type,
+                "Nom du Produit": h.productName || '',
+                "Code-barres": h.barcode,
+                "Quantité": h.qty,
+                "Prix Unitaire (DZD)": h.price,
+                "Total (DZD)": h.total
+            }));
 
-            let link = document.createElement("a");
-            link.setAttribute("href", encodeURI("data:text/xml;charset=utf-8," + xml));
-            link.setAttribute("download", `export_stock_${new Date().toISOString().slice(0,10)}.xml`);
-            document.body.appendChild(link); link.click(); document.body.removeChild(link);
-        }
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Mouvements Stock");
 
-        // --- IMPORTATION DU FICHIER (CSV ou XML) ---
-        function importerFichier(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const content = e.target.result;
-                if (file.name.endsWith('.xml')) {
-                    traiterXML(content);
-                } else {
-                    traiterCSV(content);
-                }
-            };
-            reader.readAsText(file);
-        }
-
-        function traiterXML(xmlString) {
-            try {
-                const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(xmlString, "text/xml");
-                const produits = xmlDoc.getElementsByTagName("produit");
-
-                let ajoutsCount = 0;
-                for (let i = 0; i < produits.length; i++) {
-                    const code = produits[i].getElementsByTagName("code_barres")[0]?.textContent || "";
-                    const nom = produits[i].getElementsByTagName("nom")[0]?.textContent || "Produit sans nom";
-                    const qty = parseInt(produits[i].getElementsByTagName("quantite")[0]?.textContent || "0", 10);
-                    const prix = parseFloat(produits[i].getElementsByTagName("prix_unitaire")[0]?.textContent || "0");
-
-                    if (code) {
-                        if (!stock[code]) {
-                            stock[code] = { qty: qty, name: nom, lastPrice: prix };
-                        } else {
-                            stock[code].qty += qty;
-                            stock[code].name = nom;
-                            if (prix > 0) stock[code].lastPrice = prix;
-                        }
-                        ajoutsCount++;
-                    }
-                }
-                sauvegarderEtActualiser();
-                alert(`Importation XML réussie : ${ajoutsCount} produit(s) traité(s) !`);
-            } catch (err) {
-                alert("Erreur lors de la lecture du fichier XML : " + err);
-            }
-        }
-
-        function traiterCSV(csvString) {
-            try {
-                const lines = csvString.split('\n');
-                let count = 0;
-                for (let i = 1; i < lines.length; i++) {
-                    const line = lines[i].trim();
-                    if (!line) continue;
-                    const cols = line.split(';');
-                    if (cols.length >= 6) {
-                        const nom = cols[4].replace(/"/g, '') || "Produit sans nom";
-                        const code = cols[5];
-                        const qty = parseInt(cols[6], 10) || 0;
-                        const prix = parseFloat(cols[7]) || 0;
-
-                        if (code && code !== 'N/A') {
-                            if (!stock[code]) {
-                                stock[code] = { qty: qty, name: nom, lastPrice: prix };
-                            } else {
-                                stock[code].name = nom;
-                            }
-                            count++;
-                        }
-                    }
-                }
-                sauvegarderEtActualiser();
-                alert(`Importation CSV réussie : ${count} ligne(s) importée(s) !`);
-            } catch (err) {
-                alert("Erreur lors du traitement du CSV : " + err);
-            }
+            XLSX.writeFile(workbook, `export_stock_${new Date().toISOString().slice(0,10)}.xlsx`);
         }
     </script>
 </body>
