@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanner & Gestion de Stock</title>
+    <title>Gestion Stock, Ventes & Édition Pro</title>
 
-    <!-- Inclusion de la bibliothèque de scan de code-barres Html5-QRCode -->
+    <!-- Inclusion de la bibliothèque de scan Html5-QRCode -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
     <style>
@@ -21,7 +21,7 @@
         }
         h1 {
             text-align: center;
-            font-size: 1.4rem;
+            font-size: 1.3rem;
             margin-top: 0;
             color: #1e293b;
         }
@@ -47,12 +47,13 @@
             margin-bottom: 4px;
             font-size: 0.9rem;
         }
-        input[type="text"], input[type="number"] {
+        input[type="text"], input[type="number"], select {
             width: 100%;
             padding: 10px;
             border: 1px solid #cbd5e1;
             border-radius: 6px;
             font-size: 1rem;
+            background: #fff;
         }
         .btn-group {
             display: flex;
@@ -70,9 +71,57 @@
         }
         .btn-primary { background-color: #2563eb; color: white; }
         .btn-success { background-color: #16a34a; color: white; }
+        .btn-warning { background-color: #d97706; color: white; }
+        .btn-info { background-color: #0284c7; color: white; }
         .btn-danger { background-color: #dc2626; color: white; }
         .btn-secondary { background-color: #64748b; color: white; }
         button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        /* Statistiques */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .stat-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 8px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 1rem;
+            font-weight: bold;
+            color: #2563eb;
+        }
+        .stat-label {
+            font-size: 0.7rem;
+            color: #64748b;
+        }
+
+        /* Onglets */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 12px;
+        }
+        .tab-btn {
+            background: #e2e8f0;
+            color: #475569;
+            border: none;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            flex: 1;
+        }
+        .tab-btn.active {
+            background: #2563eb;
+            color: white;
+            font-weight: bold;
+        }
 
         table {
             width: 100%;
@@ -80,10 +129,10 @@
             margin-top: 8px;
         }
         th, td {
-            padding: 10px;
+            padding: 8px;
             text-align: left;
             border-bottom: 1px solid #e2e8f0;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
         }
         th {
             background-color: #f8fafc;
@@ -92,25 +141,31 @@
         .badge {
             background: #dbeafe;
             color: #1e40af;
-            padding: 2px 8px;
+            padding: 3px 8px;
             border-radius: 12px;
             font-weight: bold;
         }
-        .actions-btn {
+        .badge-vente { background: #fee2e2; color: #991b1b; }
+        .badge-achat { background: #dcfce7; color: #166534; }
+        .badge-credit { background: #fef3c7; color: #b45309; }
+        .badge-acompte { background: #e0f2fe; color: #0369a1; }
+
+        .btn-action-icon {
             background: transparent;
-            color: #dc2626;
             border: none;
             cursor: pointer;
-            font-size: 1rem;
-            padding: 4px;
+            font-size: 0.9rem;
+            padding: 2px 4px;
         }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
     </style>
 </head>
 <body>
 
-    <h1>📦 Scanner de Stock</h1>
+    <h1>📦 Gestion Stock, Ventes & Édition</h1>
 
-    <!-- Zone Scanner Caméra -->
+    <!-- Scanner -->
     <div class="card">
         <div id="reader"></div>
         <div style="margin-top: 10px;" class="btn-group">
@@ -119,66 +174,134 @@
         </div>
     </div>
 
-    <!-- Saisie / Validation -->
+    <!-- Saisie -->
     <div class="card">
+        <div class="form-group">
+            <label for="client-name">Nom du Client :</label>
+            <input type="text" id="client-name" placeholder="Ex: Client X / Comptoir" />
+        </div>
         <div class="form-group">
             <label for="barcode">Code-barres scanné ou saisi :</label>
-            <input type="text" id="barcode" placeholder="Ex: 3017620422003" />
+            <input type="text" id="barcode" placeholder="Scannez ou tapez le code..." />
         </div>
         <div class="form-group">
-            <label for="quantity">Quantité à ajouter :</label>
+            <label for="quantity">Quantité :</label>
             <input type="number" id="quantity" value="1" min="1" />
         </div>
-        <button class="btn-success" onclick="ajouterProduit()">➕ Enregistrer / Cumuler</button>
+        <div class="form-group">
+            <label for="price">Prix unitaire (€) :</label>
+            <input type="number" id="price" value="0.00" step="0.01" min="0" placeholder="Prix" />
+        </div>
+        <div class="form-group">
+            <label for="payment-status">Statut du paiement :</label>
+            <select id="payment-status">
+                <option value="paye">Payé (Comptant)</option>
+                <option value="credit">À Crédit (Non payé)</option>
+            </select>
+        </div>
+        
+        <div class="btn-group" style="flex-direction: column; gap: 8px;">
+            <div style="display: flex; gap: 8px; width: 100%;">
+                <button class="btn-success" onclick="modifierStock('ajout')" style="flex:1;">➕ Entrée Stock (Achat)</button>
+                <button class="btn-warning" onclick="modifierStock('vente')" style="flex:1;">➖ Vente (Sortie)</button>
+            </div>
+            <button class="btn-info" onclick="encaisserSansLivraison()">💵 Encaisser sans livrer (Acompte)</button>
+        </div>
     </div>
 
-    <!-- Liste & Récapitulatif -->
+    <!-- Tableau de bord -->
     <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <h2 style="font-size: 1.1rem; margin: 0;">Produits enregistrés</h2>
-            <button class="btn-secondary" style="padding: 6px 12px; flex: none;" onclick="exporterCSV()">📥 Exporter CSV</button>
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="stat-value" id="stat-total">0</div>
+                <div class="stat-label">Articles en stock</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="stat-ca" style="color: #16a34a;">0.00 €</div>
+                <div class="stat-label">CA Encaissé</div>
+            </div>
+            <div class="stat-box" style="grid-column: span 2;">
+                <div class="stat-value" id="stat-credit" style="color: #d97706;">0.00 €</div>
+                <div class="stat-label">Total Crédits Clients</div>
+            </div>
         </div>
 
-        <table>
-            <thead>
-                <tr>
-                    <th>Code-barres</th>
-                    <th>Qté Totale</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="stock-list">
-                <!-- Rempli dynamiquement -->
-            </tbody>
-        </table>
-        
-        <div style="margin-top: 15px; text-align: right;">
-            <button class="btn-danger" style="padding: 6px 12px; font-size: 0.8rem; flex: none;" onclick="effacerTout()">🗑️ Vider le stock</button>
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('stock')">📋 Stock</button>
+            <button class="tab-btn" onclick="switchTab('history')">📜 Mouvements</button>
+            <button class="tab-btn" onclick="switchTab('credits')">⏳ Crédits</button>
+        </div>
+
+        <!-- Onglet Stock -->
+        <div id="view-stock" class="tab-content active">
+            <div class="form-group">
+                <input type="text" id="search-input" placeholder="🔍 Filtrer le stock..." oninput="renderTables()" />
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Qté</th>
+                        <th>Prix U.</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="stock-list"></tbody>
+            </table>
+        </div>
+
+        <!-- Onglet Historique -->
+        <div id="view-history" class="tab-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date/Client</th>
+                        <th>Type/Code</th>
+                        <th>Qté/Total</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="history-list"></tbody>
+            </table>
+        </div>
+
+        <!-- Onglet Crédits -->
+        <div id="view-credits" class="tab-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Client</th>
+                        <th>Détail</th>
+                        <th>Reste Dû</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="credit-list"></tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 15px; display: flex; gap: 8px;">
+            <button class="btn-secondary" style="font-size: 0.85rem;" onclick="exporterCSV()">📥 Exporter CSV</button>
+            <button class="btn-danger" style="font-size: 0.85rem;" onclick="effacerTout()">🗑️ Tout effacer</button>
         </div>
     </div>
 
     <script>
         let html5QrCode = null;
-        // Chargement du stock depuis le localStorage (si disponible)
-        let stock = JSON.parse(localStorage.getItem('inventaire_stock')) || {};
+        let stock = JSON.parse(localStorage.getItem('pro_stock_v3')) || {};
+        let historyLog = JSON.parse(localStorage.getItem('pro_history_v3')) || [];
+        let creditsLog = JSON.parse(localStorage.getItem('pro_credits_v3')) || [];
 
-        // Afficher la liste au démarrage
-        renderTable();
+        renderTables();
 
         function startScanner() {
             html5QrCode = new Html5Qrcode("reader");
             const config = { fps: 10, qrbox: { width: 250, height: 150 } };
-
-            html5QrCode.start(
-                { facingMode: "environment" }, // Utilise la caméra arrière du smartphone
-                config,
-                onScanSuccess
-            ).then(() => {
-                document.getElementById('btn-start').disabled = true;
-                document.getElementById('btn-stop').disabled = false;
-            }).catch(err => {
-                alert("Erreur d'accès à la caméra : " + err);
-            });
+            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+                .then(() => {
+                    document.getElementById('btn-start').disabled = true;
+                    document.getElementById('btn-stop').disabled = false;
+                }).catch(err => alert("Erreur caméra : " + err));
         }
 
         function stopScanner() {
@@ -191,101 +314,299 @@
         }
 
         function onScanSuccess(decodedText) {
-            // Remplir le champ code-barres et émettre un retour sonore (optionnel)
             document.getElementById('barcode').value = decodedText;
-            
-            // Proposer un petit retour visuel/vibreur
-            if (navigator.vibrate) {
-                navigator.vibrate(100);
+            if (navigator.vibrate) navigator.vibrate(100);
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            if (tabName === 'stock') {
+                document.getElementById('view-stock').classList.add('active');
+                event.target.classList.add('active');
+            } else if (tabName === 'history') {
+                document.getElementById('view-history').classList.add('active');
+                event.target.classList.add('active');
+            } else {
+                document.getElementById('view-credits').classList.add('active');
+                event.target.classList.add('active');
             }
         }
 
-        function ajouterProduit() {
+        function modifierStock(type) {
+            const client = document.getElementById('client-name').value.trim() || "Client Inconnu";
             const barcode = document.getElementById('barcode').value.trim();
             const quantity = parseInt(document.getElementById('quantity').value, 10);
+            const price = parseFloat(document.getElementById('price').value);
+            const paymentStatus = document.getElementById('payment-status').value;
 
-            if (!barcode) {
-                alert("Veuillez scanner ou saisir un code-barres.");
-                return;
+            if (!barcode) { alert("Veuillez scanner ou saisir un code-barres."); return; }
+            if (isNaN(quantity) || quantity <= 0) { alert("Quantité invalide."); return; }
+            if (isNaN(price) || price < 0) { alert("Prix invalide."); return; }
+
+            if (!stock[barcode]) { stock[barcode] = { qty: 0, lastPrice: 0 }; }
+
+            if (type === 'ajout') {
+                stock[barcode].qty += quantity;
+                stock[barcode].lastPrice = price;
+            } else if (type === 'vente') {
+                if (stock[barcode].qty < quantity) {
+                    alert(`Stock insuffisant ! Il reste ${stock[barcode].qty} exemplaire(s).`);
+                    return;
+                }
+                stock[barcode].qty -= quantity;
+                stock[barcode].lastPrice = price;
             }
 
-            if (isNaN(quantity) || quantity <= 0) {
-                alert("Veuillez saisir une quantité valide.");
-                return;
+            const totalAmount = quantity * price;
+            const now = new Date().toLocaleString();
+            let typeLabel = type === 'ajout' ? 'ACHAT' : (paymentStatus === 'credit' ? 'VENTE CRÉDIT' : 'VENTE');
+
+            historyLog.unshift({
+                id: Date.now(),
+                date: now,
+                client: client,
+                type: typeLabel,
+                barcode: barcode,
+                qty: quantity,
+                price: price,
+                total: totalAmount
+            });
+
+            if (type === 'vente' && paymentStatus === 'credit') {
+                creditsLog.unshift({
+                    id: Date.now(),
+                    client: client,
+                    detail: `${quantity}x (${barcode})`,
+                    amount: totalAmount
+                });
             }
 
-            // CONCATÉNATION / CUMUL DES QUANTITÉS
-            if (stock[barcode]) {
-                stock[barcode] += quantity;
-            } else {
-                stock[barcode] = quantity;
-            }
-
-            // Sauvegarde locale
-            localStorage.setItem('inventaire_stock', JSON.stringify(stock));
-
-            // Réinitialisation des champs & mise à jour
-            document.getElementById('barcode').value = '';
-            document.getElementById('quantity').value = 1;
-            renderTable();
+            sauvegarderEtActualiser();
         }
 
-        function supprimerCode(barcode) {
-            if (confirm(`Supprimer le code-barres ${barcode} ?`)) {
+        function encaisserSansLivraison() {
+            const client = document.getElementById('client-name').value.trim() || "Client Inconnu";
+            const price = parseFloat(document.getElementById('price').value);
+
+            if (isNaN(price) || price <= 0) { alert("Montant d'acompte invalide."); return; }
+
+            const now = new Date().toLocaleString();
+            historyLog.unshift({
+                id: Date.now(),
+                date: now,
+                client: client,
+                type: 'ACOMPTE',
+                barcode: 'N/A',
+                qty: 0,
+                price: price,
+                total: price
+            });
+
+            sauvegarderEtActualiser();
+        }
+
+        /* --- FONCTIONS DE MODIFICATION MANUELLE --- */
+
+        // 1. Éditer directement un produit du stock
+        function editerStock(barcode) {
+            const item = stock[barcode];
+            const nouvelleQtyStr = prompt(`Modifier la QUANTITÉ en stock pour le code ${barcode} :`, item.qty);
+            if (nouvelleQtyStr === null) return;
+            const nouvelleQty = parseInt(nouvelleQtyStr, 10);
+
+            const nouveauPrixStr = prompt(`Modifier le PRIX UNITAIRE pour le code ${barcode} (€) :`, item.lastPrice);
+            if (nouveauPrixStr === null) return;
+            const nouveauPrix = parseFloat(nouveauPrixStr);
+
+            if (!isNaN(nouvelleQty) && nouvelleQty >= 0 && !isNaN(nouveauPrix) && nouveauPrix >= 0) {
+                stock[barcode].qty = nouvelleQty;
+                stock[barcode].lastPrice = nouveauPrix;
+                sauvegarderEtActualiser();
+            } else {
+                alert("Valeurs saisies invalides.");
+            }
+        }
+
+        // 2. Éditer une ligne d'historique
+        function editerHistorique(id) {
+            const index = historyLog.findIndex(h => h.id === id);
+            if (index === -1) return;
+            const h = historyLog[index];
+
+            const nouveauClient = prompt("Nom du Client :", h.client);
+            if (nouveauClient === null) return;
+
+            const nouvelleQtyStr = prompt("Quantité :", h.qty);
+            if (nouvelleQtyStr === null) return;
+            const nouvelleQty = parseInt(nouvelleQtyStr, 10);
+
+            const nouveauPrixStr = prompt("Prix unitaire (€) :", h.price || 0);
+            if (nouveauPrixStr === null) return;
+            const nouveauPrix = parseFloat(nouveauPrixStr);
+
+            if (!isNaN(nouvelleQty) && !isNaN(nouveauPrix)) {
+                historyLog[index].client = nouveauClient.trim() || "Client Inconnu";
+                historyLog[index].qty = nouvelleQty;
+                historyLog[index].price = nouveauPrix;
+                historyLog[index].total = nouvelleQty * nouveauPrix;
+                sauvegarderEtActualiser();
+            }
+        }
+
+        // 3. Règlement total ou partiel d'un crédit
+        function reglerCredit(id) {
+            const index = creditsLog.findIndex(c => c.id === id);
+            if (index === -1) return;
+            const credit = creditsLog[index];
+
+            const paiementStr = prompt(`Montant réglé par ${credit.client} (Total dû : ${credit.amount.toFixed(2)} €) :`, credit.amount);
+            if (paiementStr === null) return;
+            const paiement = parseFloat(paiementStr);
+
+            if (isNaN(paiement) || paiement <= 0) { alert("Montant invalide."); return; }
+
+            if (paiement >= credit.amount) {
+                // Solder entièrement
+                creditsLog.splice(index, 1);
+            } else {
+                // Déduire un acompte/remboursement partiel
+                creditsLog[index].amount -= paiement;
+            }
+
+            // Enregistrer l'encaissement dans l'historique CA
+            historyLog.unshift({
+                id: Date.now(),
+                date: new Date().toLocaleString(),
+                client: credit.client,
+                type: 'ACOMPTE',
+                barcode: 'Règlement Crédit',
+                qty: 0,
+                price: paiement,
+                total: paiement
+            });
+
+            sauvegarderEtActualiser();
+        }
+
+        function supprimerStock(barcode) {
+            if (confirm(`Supprimer complètement ${barcode} du stock ?`)) {
                 delete stock[barcode];
-                localStorage.setItem('inventaire_stock', JSON.stringify(stock));
-                renderTable();
+                sauvegarderEtActualiser();
+            }
+        }
+
+        function supprimerHistorique(id) {
+            if (confirm("Supprimer cette ligne d'historique ?")) {
+                historyLog = historyLog.filter(h => h.id !== id);
+                sauvegarderEtActualiser();
             }
         }
 
         function effacerTout() {
-            if (confirm("Voulez-vous vraiment effacer tout l'inventaire ?")) {
-                stock = {};
-                localStorage.removeItem('inventaire_stock');
-                renderTable();
+            if (confirm("Voulez-vous vraiment TOUT réinitialiser ?")) {
+                stock = {}; historyLog = []; creditsLog = [];
+                localStorage.removeItem('pro_stock_v3');
+                localStorage.removeItem('pro_history_v3');
+                localStorage.removeItem('pro_credits_v3');
+                renderTables();
             }
         }
 
-        function renderTable() {
-            const tbody = document.getElementById('stock-list');
-            tbody.innerHTML = '';
+        function sauvegarderEtActualiser() {
+            localStorage.setItem('pro_stock_v3', JSON.stringify(stock));
+            localStorage.setItem('pro_history_v3', JSON.stringify(historyLog));
+            localStorage.setItem('pro_credits_v3', JSON.stringify(creditsLog));
 
-            const keys = Object.keys(stock);
-            if (keys.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#94a3b8;">Aucun produit scanné</td></tr>';
-                return;
+            document.getElementById('barcode').value = '';
+            document.getElementById('client-name').value = '';
+            document.getElementById('quantity').value = 1;
+            document.getElementById('price').value = '0.00';
+            renderTables();
+        }
+
+        function renderTables() {
+            // Rendu Stock
+            const tbodyStock = document.getElementById('stock-list');
+            const searchFilter = document.getElementById('search-input').value.toLowerCase().trim();
+            tbodyStock.innerHTML = '';
+            let keys = Object.keys(stock), totalUnits = 0;
+            keys.forEach(k => totalUnits += stock[k].qty);
+            document.getElementById('stat-total').innerText = totalUnits;
+
+            const filteredKeys = keys.filter(b => b.toLowerCase().includes(searchFilter));
+            if (filteredKeys.length === 0) {
+                tbodyStock.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8;">Aucun produit</td></tr>';
+            } else {
+                filteredKeys.forEach(barcode => {
+                    let item = stock[barcode];
+                    tbodyStock.innerHTML += `<tr>
+                        <td><code>${barcode}</code></td>
+                        <td><span class="badge">${item.qty}</span></td>
+                        <td>${item.lastPrice.toFixed(2)} €</td>
+                        <td>
+                            <button class="btn-action-icon" onclick="editerStock('${barcode}')" title="Modifier">✏️</button>
+                            <button class="btn-action-icon" onclick="supprimerStock('${barcode}')" title="Supprimer">❌</button>
+                        </td>
+                    </tr>`;
+                });
             }
 
-            keys.forEach(barcode => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td><code>${barcode}</code></td>
-                    <td><span class="badge">${stock[barcode]}</span></td>
-                    <td><button class="actions-btn" onclick="supprimerCode('${barcode}')" title="Supprimer">❌</button></td>
-                `;
-                tbody.appendChild(tr);
+            // Calcul Financier
+            let totalCA = 0, totalCredit = 0;
+            historyLog.forEach(h => {
+                if (h.type === 'VENTE' || h.type === 'ACOMPTE') totalCA += h.total;
             });
+            creditsLog.forEach(c => totalCredit += c.amount);
+
+            document.getElementById('stat-ca').innerText = totalCA.toFixed(2) + " €";
+            document.getElementById('stat-credit').innerText = totalCredit.toFixed(2) + " €";
+
+            // Rendu Historique
+            const tbodyHistory = document.getElementById('history-list');
+            tbodyHistory.innerHTML = '';
+            if (historyLog.length === 0) {
+                tbodyHistory.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8;">Aucun mouvement</td></tr>';
+            } else {
+                historyLog.forEach(h => {
+                    let bClass = h.type === 'ACHAT' ? 'badge-achat' : (h.type === 'VENTE CRÉDIT' ? 'badge-credit' : (h.type === 'ACOMPTE' ? 'badge-acompte' : 'badge-vente'));
+                    tbodyHistory.innerHTML += `<tr>
+                        <td><span style="font-size:0.7rem; color:#64748b;">${h.date}</span><br><b>${h.client}</b></td>
+                        <td><span class="badge ${bClass}">${h.type}</span><br><code>${h.barcode}</code></td>
+                        <td>${h.qty} x ${h.price ? h.price.toFixed(2) : 0}€<br><b>${h.total.toFixed(2)} €</b></td>
+                        <td>
+                            <button class="btn-action-icon" onclick="editerHistorique(${h.id})" title="Modifier">✏️</button>
+                            <button class="btn-action-icon" onclick="supprimerHistorique(${h.id})" title="Supprimer">❌</button>
+                        </td>
+                    </tr>`;
+                });
+            }
+
+            // Rendu Crédits
+            const tbodyCredit = document.getElementById('credit-list');
+            tbodyCredit.innerHTML = '';
+            if (creditsLog.length === 0) {
+                tbodyCredit.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8;">Aucun crédit en cours 🎉</td></tr>';
+            } else {
+                creditsLog.forEach(c => {
+                    tbodyCredit.innerHTML += `<tr>
+                        <td><b>${c.client}</b></td>
+                        <td>${c.detail}</td>
+                        <td style="color:#d97706; font-weight:bold;">${c.amount.toFixed(2)} €</td>
+                        <td><button class="btn-success" style="padding:4px 8px; font-size:0.75rem;" onclick="reglerCredit(${c.id})">💵 Régler</button></td>
+                    </tr>`;
+                });
+            }
         }
 
         function exporterCSV() {
-            const keys = Object.keys(stock);
-            if (keys.length === 0) {
-                alert("Aucune donnée à exporter.");
-                return;
-            }
-
-            let csvContent = "data:text/csv;charset=utf-8,Code_Barres;Quantite\n";
-            keys.forEach(code => {
-                csvContent += `${code};${stock[code]}\n`;
-            });
-
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `inventaire_${new Date().toISOString().slice(0,10)}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            if (historyLog.length === 0) { alert("Rien à exporter."); return; }
+            let csv = "ID;Date;Client;Type;Code_Barres;Quantite;Prix_Unitaire;Total_Euros\n";
+            historyLog.forEach(h => csv += `${h.id};${h.date};${h.client};${h.type};${h.barcode};${h.qty};${h.price};${h.total}\n`);
+            let link = document.createElement("a");
+            link.setAttribute("href", encodeURI("data:text/csv;charset=utf-8," + csv));
+            link.setAttribute("download", `export_inventaire_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
     </script>
 </body>
