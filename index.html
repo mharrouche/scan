@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Stock & Scanner Pro</title>
+    <title>Gestion Stock & Scanner Macro</title>
 
     <!-- Inclusion de la bibliothèque de scan Html5-QRCode -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -36,7 +36,7 @@
             margin-bottom: 16px;
         }
 
-        /* Zone Scanner Optimisée & Nette */
+        /* Zone Scanner */
         #reader-container {
             position: relative;
             width: 100%;
@@ -48,13 +48,13 @@
         }
         #reader {
             width: 100% !important;
-            min-height: 350px;
+            min-height: 320px;
             border: none !important;
         }
         #reader video {
             object-fit: cover !important;
             width: 100% !important;
-            height: 350px !important;
+            height: 320px !important;
             border-radius: 10px;
         }
         .scan-laser {
@@ -203,14 +203,14 @@
 </head>
 <body>
 
-    <h1>📦 Stock & Scanner Pro (Ultra-Net)</h1>
+    <h1>📦 Stock & Scanner Pro (Macro)</h1>
 
     <!-- Gestion des Importations Excel -->
     <div class="card" style="background: #f0fdf4; border: 1px solid #bbf7d0;">
         <h3 style="margin-top:0; font-size:1rem; color:#166534;">📊 Gestion des fichiers Excel (.xlsx / .xls)</h3>
         
         <div style="margin-bottom: 10px;">
-            <p style="font-size:0.8rem; color:#475569; margin:0 0 4px 0;"><b>1. Charger la Pricelist :</b> (Description en Col A, Prix Gros DZD HT en Col F, Code-barres détecté auto)</p>
+            <p style="font-size:0.8rem; color:#475569; margin:0 0 4px 0;"><b>1. Charger la Pricelist :</b> (Description Col A, Prix Gros Col F, Code auto)</p>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <button class="btn-success" style="font-size:0.85rem; padding:8px;" onclick="document.getElementById('pricelist-file-input').click()">📁 Charger Pricelist</button>
                 <input type="file" id="pricelist-file-input" accept=".xlsx, .xls" style="display: none;" onchange="importerPricelistExcel(event)" />
@@ -225,16 +225,22 @@
         </div>
     </div>
 
-    <!-- Zone Scanner HD -->
+    <!-- Zone Scanner avec Mode Macro Forcé -->
     <div class="card">
         <div id="reader-container">
             <div id="reader"></div>
             <div class="scan-laser"></div>
         </div>
-        <div class="scan-instruction">💡 Centrer le code-barres sur la ligne rouge</div>
-        <div style="margin-top: 12px;" class="btn-group">
-            <button id="btn-start" class="btn-primary" onclick="startScanner()">📷 Activer la caméra</button>
-            <button id="btn-stop" class="btn-secondary" onclick="stopScanner()" disabled>⏹️ Arrêter</button>
+        <div class="scan-instruction">💡 Mode Macro activé : approchez le code-barres à 10-15 cm</div>
+        
+        <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <div class="btn-group">
+                <button id="btn-start" class="btn-primary" onclick="startScanner()">📷 Activer la caméra (Macro)</button>
+                <button id="btn-stop" class="btn-secondary" onclick="stopScanner()" disabled>⏹️ Arrêter</button>
+            </div>
+            <!-- Option photo de secours toujours disponible -->
+            <button class="btn-info" style="font-size: 0.85rem;" onclick="document.getElementById('qr-input-file').click()">🖼️ Prendre une photo (Ultra-net)</button>
+            <input type="file" id="qr-input-file" accept="image/*" capture="environment" style="display:none" onchange="scannedFromFile(event)">
         </div>
     </div>
 
@@ -357,31 +363,41 @@
     <script>
         let html5QrCode = null;
         let pricelist = JSON.parse(localStorage.getItem('pro_pricelist_excel')) || {};
-        let stock = JSON.parse(localStorage.getItem('pro_stock_v12')) || {};
-        let historyLog = JSON.parse(localStorage.getItem('pro_history_v12')) || [];
-        let creditsLog = JSON.parse(localStorage.getItem('pro_credits_v12')) || [];
+        let stock = JSON.parse(localStorage.getItem('pro_stock_v13')) || {};
+        let historyLog = JSON.parse(localStorage.getItem('pro_history_v13')) || [];
+        let creditsLog = JSON.parse(localStorage.getItem('pro_credits_v13')) || [];
 
         verifierStatutPricelist();
         renderTables();
 
         function startScanner() {
-            html5QrCode = new Html5Qrcode("reader");
+            if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
             
-            // Correction du format requis par Html5Qrcode : utilisation de { facingMode: "environment" }
-            const config = { 
-                fps: 15, 
-                qrbox: { width: 320, height: 160 },
-                aspectRatio: 16/9
+            const config = { fps: 20, qrbox: { width: 320, height: 160 }, aspectRatio: 16/9 };
+
+            // Forçage de la mise au point macro / rapprochée via les contraintes avancées
+            const constraints = {
+                facingMode: "environment",
+                advanced: [
+                    { focusMode: "macro" },
+                    { focusMode: "continuous" }
+                ]
             };
 
-            html5QrCode.start(
-                { facingMode: "environment" }, 
-                config, 
-                onScanSuccess
-            ).then(() => {
-                document.getElementById('btn-start').disabled = true;
-                document.getElementById('btn-stop').disabled = false;
-            }).catch(err => alert("Erreur d'accès à la caméra : " + err));
+            html5QrCode.start(constraints, config, onScanSuccess)
+                .then(() => {
+                    document.getElementById('btn-start').disabled = true;
+                    document.getElementById('btn-stop').disabled = false;
+                })
+                .catch(err => {
+                    // Repli automatique si le mode macro strict n'est pas supporté par le navigateur
+                    html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+                        .then(() => {
+                            document.getElementById('btn-start').disabled = true;
+                            document.getElementById('btn-stop').disabled = false;
+                        })
+                        .catch(e => alert("Erreur d'accès à la caméra : " + e));
+                });
         }
 
         function stopScanner() {
@@ -397,6 +413,17 @@
             document.getElementById('barcode').value = decodedText;
             rechercherParCodeBarres();
             if (navigator.vibrate) navigator.vibrate(100);
+        }
+
+        function scannedFromFile(e) {
+            if (e.target.files.length === 0) return;
+            const imageFile = e.target.files[0];
+            const html5QrCodeFile = new Html5Qrcode("reader");
+            html5QrCodeFile.scanFile(imageFile, true)
+                .then(decodedText => {
+                    onScanSuccess(decodedText);
+                })
+                .catch(err => alert("Code-barres non détecté sur la photo. Essayez d'encadrer de plus près."));
         }
 
         function rechercherParCodeBarres() {
@@ -739,17 +766,17 @@
         function effacerTout() {
             if (confirm("Voulez-vous vraiment TOUT réinitialiser ?")) {
                 stock = {}; historyLog = []; creditsLog = [];
-                localStorage.removeItem('pro_stock_v12');
-                localStorage.removeItem('pro_history_v12');
-                localStorage.removeItem('pro_credits_v12');
+                localStorage.removeItem('pro_stock_v13');
+                localStorage.removeItem('pro_history_v13');
+                localStorage.removeItem('pro_credits_v13');
                 renderTables();
             }
         }
 
         function sauvegarderEtActualiser() {
-            localStorage.setItem('pro_stock_v12', JSON.stringify(stock));
-            localStorage.setItem('pro_history_v12', JSON.stringify(historyLog));
-            localStorage.setItem('pro_credits_v12', JSON.stringify(creditsLog));
+            localStorage.setItem('pro_stock_v13', JSON.stringify(stock));
+            localStorage.setItem('pro_history_v13', JSON.stringify(historyLog));
+            localStorage.setItem('pro_credits_v13', JSON.stringify(creditsLog));
 
             document.getElementById('barcode').value = '';
             document.getElementById('product-name').value = '';
