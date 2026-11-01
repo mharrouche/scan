@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Stock & Scanner Macro</title>
+    <title>Gestion Stock & Scanner Photo Pro</title>
 
     <!-- Inclusion de la bibliothèque de scan Html5-QRCode -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -35,47 +35,6 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             margin-bottom: 16px;
         }
-
-        /* Zone Scanner */
-        #reader-container {
-            position: relative;
-            width: 100%;
-            border-radius: 12px;
-            overflow: hidden;
-            background: #0f172a;
-            border: 2px solid #2563eb;
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
-        }
-        #reader {
-            width: 100% !important;
-            min-height: 320px;
-            border: none !important;
-        }
-        #reader video {
-            object-fit: cover !important;
-            width: 100% !important;
-            height: 320px !important;
-            border-radius: 10px;
-        }
-        .scan-laser {
-            position: absolute;
-            top: 50%;
-            left: 10%;
-            right: 10%;
-            height: 2px;
-            background-color: #ef4444;
-            box-shadow: 0 0 8px #ef4444;
-            z-index: 10;
-            pointer-events: none;
-        }
-        .scan-instruction {
-            text-align: center;
-            font-size: 0.8rem;
-            color: #64748b;
-            margin-top: 6px;
-            font-weight: 500;
-        }
-
         .form-group {
             margin-bottom: 12px;
         }
@@ -107,13 +66,11 @@
             cursor: pointer;
             transition: background 0.2s;
         }
-        .btn-primary { background-color: #2563eb; color: white; }
         .btn-success { background-color: #16a34a; color: white; }
         .btn-warning { background-color: #d97706; color: white; }
         .btn-info { background-color: #0284c7; color: white; }
         .btn-danger { background-color: #dc2626; color: white; }
         .btn-secondary { background-color: #64748b; color: white; }
-        button:disabled { opacity: 0.6; cursor: not-allowed; }
 
         /* Statistiques */
         .stats-grid {
@@ -203,7 +160,7 @@
 </head>
 <body>
 
-    <h1>📦 Stock & Scanner Pro (Macro)</h1>
+    <h1>📦 Stock & Scanner Photo Pro</h1>
 
     <!-- Gestion des Importations Excel -->
     <div class="card" style="background: #f0fdf4; border: 1px solid #bbf7d0;">
@@ -225,34 +182,21 @@
         </div>
     </div>
 
-    <!-- Zone Scanner avec Mode Macro Forcé -->
-    <div class="card">
-        <div id="reader-container">
-            <div id="reader"></div>
-            <div class="scan-laser"></div>
-        </div>
-        <div class="scan-instruction">💡 Mode Macro activé : approchez le code-barres à 10-15 cm</div>
-        
-        <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
-            <div class="btn-group">
-                <button id="btn-start" class="btn-primary" onclick="startScanner()">📷 Activer la caméra (Macro)</button>
-                <button id="btn-stop" class="btn-secondary" onclick="stopScanner()" disabled>⏹️ Arrêter</button>
-            </div>
-            <!-- Option photo de secours toujours disponible -->
-            <button class="btn-info" style="font-size: 0.85rem;" onclick="document.getElementById('qr-input-file').click()">🖼️ Prendre une photo (Ultra-net)</button>
-            <input type="file" id="qr-input-file" accept="image/*" capture="environment" style="display:none" onchange="scannedFromFile(event)">
-        </div>
-    </div>
-
-    <!-- Saisie -->
+    <!-- Saisie & Scan par Appareil Photo Natif -->
     <div class="card">
         <div class="form-group">
             <label for="client-name">Nom du Client :</label>
             <input type="text" id="client-name" placeholder="Ex: Client X / Comptoir" />
         </div>
+
         <div class="form-group">
-            <label for="barcode">Code-barres scanné ou saisi :</label>
-            <input type="text" id="barcode" placeholder="Scannez ou tapez le code..." oninput="rechercherParCodeBarres()" onblur="rechercherParCodeBarres()" />
+            <button class="btn-info" style="width: 100%; padding: 14px; font-size: 1rem;" onclick="document.getElementById('qr-input-file').click()">📸 Scanner un code-barres (Photo native)</button>
+            <input type="file" id="qr-input-file" accept="image/*" capture="environment" style="display:none" onchange="scannedFromFile(event)">
+        </div>
+
+        <div class="form-group">
+            <label for="barcode">Code-barres (Scanné ou Saisi) :</label>
+            <input type="text" id="barcode" placeholder="Le code apparaîtra ici..." oninput="rechercherParCodeBarres()" onblur="rechercherParCodeBarres()" />
         </div>
         <div class="form-group">
             <label for="product-name">Nom du Produit :</label>
@@ -361,69 +305,34 @@
     </div>
 
     <script>
-        let html5QrCode = null;
         let pricelist = JSON.parse(localStorage.getItem('pro_pricelist_excel')) || {};
-        let stock = JSON.parse(localStorage.getItem('pro_stock_v13')) || {};
-        let historyLog = JSON.parse(localStorage.getItem('pro_history_v13')) || [];
-        let creditsLog = JSON.parse(localStorage.getItem('pro_credits_v13')) || [];
+        let stock = JSON.parse(localStorage.getItem('pro_stock_v15')) || {};
+        let historyLog = JSON.parse(localStorage.getItem('pro_history_v15')) || [];
+        let creditsLog = JSON.parse(localStorage.getItem('pro_credits_v15')) || [];
 
         verifierStatutPricelist();
         renderTables();
 
-        function startScanner() {
-            if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
-            
-            const config = { fps: 20, qrbox: { width: 320, height: 160 }, aspectRatio: 16/9 };
-
-            // Forçage de la mise au point macro / rapprochée via les contraintes avancées
-            const constraints = {
-                facingMode: "environment",
-                advanced: [
-                    { focusMode: "macro" },
-                    { focusMode: "continuous" }
-                ]
-            };
-
-            html5QrCode.start(constraints, config, onScanSuccess)
-                .then(() => {
-                    document.getElementById('btn-start').disabled = true;
-                    document.getElementById('btn-stop').disabled = false;
-                })
-                .catch(err => {
-                    // Repli automatique si le mode macro strict n'est pas supporté par le navigateur
-                    html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
-                        .then(() => {
-                            document.getElementById('btn-start').disabled = true;
-                            document.getElementById('btn-stop').disabled = false;
-                        })
-                        .catch(e => alert("Erreur d'accès à la caméra : " + e));
-                });
-        }
-
-        function stopScanner() {
-            if (html5QrCode) {
-                html5QrCode.stop().then(() => {
-                    document.getElementById('btn-start').disabled = false;
-                    document.getElementById('btn-stop').disabled = true;
-                });
-            }
-        }
-
-        function onScanSuccess(decodedText) {
-            document.getElementById('barcode').value = decodedText;
-            rechercherParCodeBarres();
-            if (navigator.vibrate) navigator.vibrate(100);
-        }
-
         function scannedFromFile(e) {
             if (e.target.files.length === 0) return;
             const imageFile = e.target.files[0];
-            const html5QrCodeFile = new Html5Qrcode("reader");
+            const html5QrCodeFile = new Html5Qrcode("hidden-reader");
+            
+            let tempDiv = document.getElementById('hidden-reader');
+            if (!tempDiv) {
+                tempDiv = document.createElement('div');
+                tempDiv.id = 'hidden-reader';
+                tempDiv.style.display = 'none';
+                document.body.appendChild(tempDiv);
+            }
+
             html5QrCodeFile.scanFile(imageFile, true)
                 .then(decodedText => {
-                    onScanSuccess(decodedText);
+                    document.getElementById('barcode').value = decodedText;
+                    rechercherParCodeBarres();
+                    if (navigator.vibrate) navigator.vibrate(100);
                 })
-                .catch(err => alert("Code-barres non détecté sur la photo. Essayez d'encadrer de plus près."));
+                .catch(err => alert("Code-barres non détecté sur cette photo. Assurez-vous qu'il est bien visible et net."));
         }
 
         function rechercherParCodeBarres() {
@@ -466,9 +375,20 @@
                         const row = rows[i];
                         if (!row || row.length === 0) continue;
 
-                        let desc = row[0] ? String(row[0]).trim() : ''; 
-                        let prixVal = row[5] !== undefined ? parseFloat(String(row[5]).replace(',', '.')) : 0; 
+                        // Extraction robuste de la description (colonne A ou première cellule non vide)
+                        let desc = '';
+                        for (let c = 0; c < row.length; c++) {
+                            let val = row[c] ? String(row[c]).trim() : '';
+                            if (val && val.toLowerCase() !== 'colonne1' && !val.toLowerCase().includes('marqua') && !val.toLowerCase().includes('description')) {
+                                desc = val;
+                                break;
+                            }
+                        }
+
+                        // Prix unitaire gros (Colonne F, index 5)
+                        let prixVal = row[5] !== undefined ? parseFloat(String(row[5]).replace(',', '.')) : 0;
                         
+                        // Code-barres (recherche à la fin de la ligne)
                         let barcode = '';
                         for (let c = row.length - 1; c >= 0; c--) {
                             let val = row[c] ? String(row[c]).trim() : '';
@@ -766,17 +686,17 @@
         function effacerTout() {
             if (confirm("Voulez-vous vraiment TOUT réinitialiser ?")) {
                 stock = {}; historyLog = []; creditsLog = [];
-                localStorage.removeItem('pro_stock_v13');
-                localStorage.removeItem('pro_history_v13');
-                localStorage.removeItem('pro_credits_v13');
+                localStorage.removeItem('pro_stock_v15');
+                localStorage.removeItem('pro_history_v15');
+                localStorage.removeItem('pro_credits_v15');
                 renderTables();
             }
         }
 
         function sauvegarderEtActualiser() {
-            localStorage.setItem('pro_stock_v13', JSON.stringify(stock));
-            localStorage.setItem('pro_history_v13', JSON.stringify(historyLog));
-            localStorage.setItem('pro_credits_v13', JSON.stringify(creditsLog));
+            localStorage.setItem('pro_stock_v15', JSON.stringify(stock));
+            localStorage.setItem('pro_history_v15', JSON.stringify(historyLog));
+            localStorage.setItem('pro_credits_v15', JSON.stringify(creditsLog));
 
             document.getElementById('barcode').value = '';
             document.getElementById('product-name').value = '';
