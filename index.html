@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Stock & Pricelist Excel Pro</title>
+    <title>Gestion Stock & Scanner Pro Net</title>
 
     <!-- Inclusion de la bibliothèque de scan Html5-QRCode -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -36,7 +36,7 @@
             margin-bottom: 16px;
         }
 
-        /* Zone Scanner Améliorée (Grande & Claire) */
+        /* Zone Scanner Optimisée & Nette */
         #reader-container {
             position: relative;
             width: 100%;
@@ -48,13 +48,13 @@
         }
         #reader {
             width: 100% !important;
-            min-height: 320px;
+            min-height: 350px;
             border: none !important;
         }
         #reader video {
             object-fit: cover !important;
             width: 100% !important;
-            height: 320px !important;
+            height: 350px !important;
             border-radius: 10px;
         }
         .scan-laser {
@@ -203,7 +203,7 @@
 </head>
 <body>
 
-    <h1>📦 Stock & Pricelist Excel Pro</h1>
+    <h1>📦 Stock & Scanner Pro (Ultra-Net)</h1>
 
     <!-- Gestion des Importations Excel -->
     <div class="card" style="background: #f0fdf4; border: 1px solid #bbf7d0;">
@@ -225,15 +225,15 @@
         </div>
     </div>
 
-    <!-- Zone Scanner Améliorée (Grande & Claire) -->
+    <!-- Zone Scanner Haute Définition & Macro -->
     <div class="card">
         <div id="reader-container">
             <div id="reader"></div>
             <div class="scan-laser"></div>
         </div>
-        <div class="scan-instruction">💡 Centrer le code-barres sur la ligne rouge</div>
+        <div class="scan-instruction">💡 Approchez ou éloignez légèrement le code pour faire la mise au point</div>
         <div style="margin-top: 12px;" class="btn-group">
-            <button id="btn-start" class="btn-primary" onclick="startScanner()">📷 Activer la caméra</button>
+            <button id="btn-start" class="btn-primary" onclick="startScanner()">📷 Activer la caméra (HD)</button>
             <button id="btn-stop" class="btn-secondary" onclick="stopScanner()" disabled>⏹️ Arrêter</button>
         </div>
     </div>
@@ -357,26 +357,50 @@
     <script>
         let html5QrCode = null;
         let pricelist = JSON.parse(localStorage.getItem('pro_pricelist_excel')) || {};
-        let stock = JSON.parse(localStorage.getItem('pro_stock_v9')) || {};
-        let historyLog = JSON.parse(localStorage.getItem('pro_history_v9')) || [];
-        let creditsLog = JSON.parse(localStorage.getItem('pro_credits_v9')) || [];
+        let stock = JSON.parse(localStorage.getItem('pro_stock_v10')) || {};
+        let historyLog = JSON.parse(localStorage.getItem('pro_history_v10')) || [];
+        let creditsLog = JSON.parse(localStorage.getItem('pro_credits_v10')) || [];
 
         verifierStatutPricelist();
         renderTables();
 
         function startScanner() {
             html5QrCode = new Html5Qrcode("reader");
+            
+            // Configuration ultra-nette : Haute résolution (1280x720 min) et autofocus continu
+            const constraints = {
+                facingMode: "environment",
+                width: { min: 1280, ideal: 1920, max: 3840 },
+                height: { min: 720, ideal: 1080, max: 2160 },
+                focusMode: "continuous" // Force l'autofocus si pris en charge par le navigateur
+            };
+
             const config = { 
-                fps: 15, 
-                qrbox: { width: 300, height: 180 },
+                fps: 20, 
+                qrbox: { width: 320, height: 160 },
                 aspectRatio: 16/9
             };
 
-            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
-                .then(() => {
-                    document.getElementById('btn-start').disabled = true;
-                    document.getElementById('btn-stop').disabled = false;
-                }).catch(err => alert("Erreur caméra : " + err));
+            html5QrCode.start(
+                constraints, 
+                config, 
+                onScanSuccess
+            ).then(() => {
+                document.getElementById('btn-start').disabled = true;
+                document.getElementById('btn-stop').disabled = false;
+
+                // Tente d'appliquer des réglages avancés de focus/macro sur la piste vidéo active si le smartphone le permet
+                try {
+                    const videoTrack = html5QrCode.getRunningTrack();
+                    if (videoTrack && videoTrack.applyConstraints) {
+                        videoTrack.applyConstraints({
+                            advanced: [{ focusMode: "continuous" }, { zoom: 1.0 }]
+                        }).catch(e => console.log("Contraintes avancées non supportées sur ce device", e));
+                    }
+                } catch(err) {
+                    // Ignore si non supporté
+                }
+            }).catch(err => alert("Erreur d'accès à la caméra HD : " + err));
         }
 
         function stopScanner() {
@@ -394,17 +418,14 @@
             if (navigator.vibrate) navigator.vibrate(100);
         }
 
-        // --- RECHERCHE AMÉLIORÉE DANS LA PRICELIST ---
         function rechercherParCodeBarres() {
             const barcode = document.getElementById('barcode').value.trim();
             if (!barcode) return;
 
-            // Recherche exacte ou insensible à la casse dans le dictionnaire de la pricelist
             if (pricelist[barcode]) {
                 document.getElementById('product-name').value = pricelist[barcode].name;
                 document.getElementById('price').value = pricelist[barcode].price;
             } else {
-                // Recherche tolérante (si espaces ou format légèrement différent)
                 let foundKey = Object.keys(pricelist).find(k => k.trim().toLowerCase() === barcode.toLowerCase());
                 if (foundKey) {
                     document.getElementById('product-name').value = pricelist[foundKey].name;
@@ -416,7 +437,6 @@
             }
         }
 
-        // --- IMPORTATION DE LA PRICELIST (ROBUSTE) ---
         function importerPricelistExcel(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -436,13 +456,10 @@
                         const row = rows[i];
                         if (!row || row.length === 0) continue;
 
-                        let desc = row[0] ? String(row[0]).trim() : ''; // Colonne A
-                        let prixVal = row[5] !== undefined ? parseFloat(String(row[5]).replace(',', '.')) : 0; // Colonne F
-                        
-                        // Cherche le code barre en Colonne H (index 7), ou balaie toute la ligne s'il est ailleurs
+                        let desc = row[0] ? String(row[0]).trim() : '';
+                        let prixVal = row[5] !== undefined ? parseFloat(String(row[5]).replace(',', '.')) : 0;
                         let barcode = row[7] ? String(row[7]).trim() : '';
                         if (!barcode || barcode.toLowerCase() === 'code barre' || barcode.toLowerCase() === 'h') {
-                            // Recherche automatique d'une valeur numérique longue (potentiel code-barres) dans la ligne
                             for (let c = 0; c < row.length; c++) {
                                 let val = row[c] ? String(row[c]).trim() : '';
                                 if (val.length >= 5 && !isNaN(val)) {
@@ -740,17 +757,17 @@
         function effacerTout() {
             if (confirm("Voulez-vous vraiment TOUT réinitialiser ?")) {
                 stock = {}; historyLog = []; creditsLog = [];
-                localStorage.removeItem('pro_stock_v9');
-                localStorage.removeItem('pro_history_v9');
-                localStorage.removeItem('pro_credits_v9');
+                localStorage.removeItem('pro_stock_v10');
+                localStorage.removeItem('pro_history_v10');
+                localStorage.removeItem('pro_credits_v10');
                 renderTables();
             }
         }
 
         function sauvegarderEtActualiser() {
-            localStorage.setItem('pro_stock_v9', JSON.stringify(stock));
-            localStorage.setItem('pro_history_v9', JSON.stringify(historyLog));
-            localStorage.setItem('pro_credits_v9', JSON.stringify(creditsLog));
+            localStorage.setItem('pro_stock_v10', JSON.stringify(stock));
+            localStorage.setItem('pro_history_v10', JSON.stringify(historyLog));
+            localStorage.setItem('pro_credits_v10', JSON.stringify(creditsLog));
 
             document.getElementById('barcode').value = '';
             document.getElementById('product-name').value = '';
