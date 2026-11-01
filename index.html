@@ -3,11 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Stock & Scanner Photo Pro</title>
+    <title>Gestion Stock Pro</title>
 
-    <!-- Inclusion de la bibliothèque de scan Html5-QRCode -->
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-    
     <!-- Inclusion de la bibliothèque SheetJS pour lire/écrire les fichiers Excel (.xlsx) -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
@@ -46,10 +43,10 @@
         }
         input[type="text"], input[type="number"], select {
             width: 100%;
-            padding: 10px;
+            padding: 12px;
             border: 1px solid #cbd5e1;
             border-radius: 6px;
-            font-size: 1rem;
+            font-size: 1.1rem;
             background: #fff;
         }
         .btn-group {
@@ -160,7 +157,7 @@
 </head>
 <body>
 
-    <h1>📦 Stock & Scanner Photo Pro</h1>
+    <h1>📦 Gestion de Stock & Ventes</h1>
 
     <!-- Gestion des Importations Excel -->
     <div class="card" style="background: #f0fdf4; border: 1px solid #bbf7d0;">
@@ -182,7 +179,7 @@
         </div>
     </div>
 
-    <!-- Saisie & Scan par Appareil Photo Natif -->
+    <!-- Saisie principale -->
     <div class="card">
         <div class="form-group">
             <label for="client-name">Nom du Client :</label>
@@ -190,14 +187,11 @@
         </div>
 
         <div class="form-group">
-            <button class="btn-info" style="width: 100%; padding: 14px; font-size: 1rem;" onclick="document.getElementById('qr-input-file').click()">📸 Scanner un code-barres (Photo native)</button>
-            <input type="file" id="qr-input-file" accept="image/*" capture="environment" style="display:none" onchange="scannedFromFile(event)">
+            <label for="barcode">Code-barres / Référence :</label>
+            <input type="text" id="barcode" placeholder="Tapez ou scannez le code ici..." oninput="rechercherParCodeBarres()" autofocus />
+            <small style="color: #64748b; display: block; margin-top: 4px;">💡 Le nom et le prix se rempliront instantanément dès que le code correspond à votre pricelist.</small>
         </div>
 
-        <div class="form-group">
-            <label for="barcode">Code-barres (Scanné ou Saisi) :</label>
-            <input type="text" id="barcode" placeholder="Le code apparaîtra ici..." oninput="rechercherParCodeBarres()" onblur="rechercherParCodeBarres()" />
-        </div>
         <div class="form-group">
             <label for="product-name">Nom du Produit :</label>
             <input type="text" id="product-name" placeholder="Rempli auto via la pricelist..." />
@@ -304,37 +298,16 @@
         </div>
     </div>
 
-    <!-- Élément DOM caché nécessaire pour la lecture de fichier par Html5Qrcode -->
-    <div id="hidden-qr-reader" style="display:none;"></div>
-
     <script>
         let pricelist = JSON.parse(localStorage.getItem('pro_pricelist_excel')) || {};
-        let stock = JSON.parse(localStorage.getItem('pro_stock_v16')) || {};
-        let historyLog = JSON.parse(localStorage.getItem('pro_history_v16')) || [];
-        let creditsLog = JSON.parse(localStorage.getItem('pro_credits_v16')) || [];
+        let stock = JSON.parse(localStorage.getItem('pro_stock_v17')) || {};
+        let historyLog = JSON.parse(localStorage.getItem('pro_history_v17')) || [];
+        let creditsLog = JSON.parse(localStorage.getItem('pro_credits_v17')) || [];
 
         verifierStatutPricelist();
         renderTables();
 
-        // Correction de la lecture photo via la méthode statique correcte de Html5Qrcode
-        function scannedFromFile(e) {
-            if (e.target.files.length === 0) return;
-            const imageFile = e.target.files[0];
-
-            Html5Qrcode.scanFile("hidden-qr-reader", imageFile, true)
-                .then(decodedText => {
-                    document.getElementById('barcode').value = decodedText;
-                    rechercherParCodeBarres();
-                    if (navigator.vibrate) navigator.vibrate(100);
-                    // Réinitialise l'input file pour permettre de rescanner le même fichier si besoin
-                    e.target.value = '';
-                })
-                .catch(err => {
-                    alert("Code-barres non détecté sur cette photo. Essayez d'approcher un peu plus ou d'assurer un bon éclairage.");
-                    e.target.value = '';
-                });
-        }
-
+        // Recherche ultra-rapide et robuste dans la pricelist dès la saisie
         function rechercherParCodeBarres() {
             const barcode = document.getElementById('barcode').value.trim();
             if (!barcode) return;
@@ -408,7 +381,7 @@
 
                     localStorage.setItem('pro_pricelist_excel', JSON.stringify(pricelist));
                     verifierStatutPricelist();
-                    alert(`Pricelist importée avec succès ! ${count} articles référencés.`);
+                    alert(`Pricelist importée avec succès ! ${count} articles référencés avec leurs descriptions.`);
                 } catch (err) {
                     alert("Erreur de lecture du fichier Excel : " + err);
                 }
@@ -510,7 +483,7 @@
             const price = parseFloat(document.getElementById('price').value);
             const paymentStatus = document.getElementById('payment-status').value;
 
-            if (!barcode) { alert("Veuillez scanner ou saisir un code-barres."); return; }
+            if (!barcode) { alert("Veuillez saisir un code-barres."); return; }
             if (isNaN(quantity) || quantity <= 0) { alert("Quantité invalide."); return; }
             if (isNaN(price) || price < 0) { alert("Prix invalide."); return; }
 
@@ -683,23 +656,24 @@
         function effacerTout() {
             if (confirm("Voulez-vous vraiment TOUT réinitialiser ?")) {
                 stock = {}; historyLog = []; creditsLog = [];
-                localStorage.removeItem('pro_stock_v16');
-                localStorage.removeItem('pro_history_v16');
-                localStorage.removeItem('pro_credits_v16');
+                localStorage.removeItem('pro_stock_v17');
+                localStorage.removeItem('pro_history_v17');
+                localStorage.removeItem('pro_credits_v17');
                 renderTables();
             }
         }
 
         function sauvegarderEtActualiser() {
-            localStorage.setItem('pro_stock_v16', JSON.stringify(stock));
-            localStorage.setItem('pro_history_v16', JSON.stringify(historyLog));
-            localStorage.setItem('pro_credits_v16', JSON.stringify(creditsLog));
+            localStorage.setItem('pro_stock_v17', JSON.stringify(stock));
+            localStorage.setItem('pro_history_v17', JSON.stringify(historyLog));
+            localStorage.setItem('pro_credits_v17', JSON.stringify(creditsLog));
 
             document.getElementById('barcode').value = '';
             document.getElementById('product-name').value = '';
             document.getElementById('client-name').value = '';
             document.getElementById('quantity').value = 1;
             document.getElementById('price').value = '0.00';
+            document.getElementById('barcode').focus();
             renderTables();
         }
 
