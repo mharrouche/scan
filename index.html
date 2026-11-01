@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Stock & Pricelist Excel Pro</title>
+    <title>Gestion Stock & Scanner Pro</title>
 
     <!-- Inclusion de la bibliothèque de scan Html5-QRCode -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -233,7 +233,7 @@
         </div>
         <div class="scan-instruction">💡 Centrer le code-barres sur la ligne rouge</div>
         <div style="margin-top: 12px;" class="btn-group">
-            <button id="btn-start" class="btn-primary" onclick="startScanner()">📷 Activer la caméra (HD)</button>
+            <button id="btn-start" class="btn-primary" onclick="startScanner()">📷 Activer la caméra</button>
             <button id="btn-stop" class="btn-secondary" onclick="stopScanner()" disabled>⏹️ Arrêter</button>
         </div>
     </div>
@@ -357,41 +357,31 @@
     <script>
         let html5QrCode = null;
         let pricelist = JSON.parse(localStorage.getItem('pro_pricelist_excel')) || {};
-        let stock = JSON.parse(localStorage.getItem('pro_stock_v11')) || {};
-        let historyLog = JSON.parse(localStorage.getItem('pro_history_v11')) || [];
-        let creditsLog = JSON.parse(localStorage.getItem('pro_credits_v11')) || [];
+        let stock = JSON.parse(localStorage.getItem('pro_stock_v12')) || {};
+        let historyLog = JSON.parse(localStorage.getItem('pro_history_v12')) || [];
+        let creditsLog = JSON.parse(localStorage.getItem('pro_credits_v12')) || [];
 
         verifierStatutPricelist();
         renderTables();
 
         function startScanner() {
             html5QrCode = new Html5Qrcode("reader");
-            const constraints = {
-                facingMode: "environment",
-                width: { min: 1280, ideal: 1920, max: 3840 },
-                height: { min: 720, ideal: 1080, max: 2160 },
-                focusMode: "continuous"
-            };
-
+            
+            // Correction du format requis par Html5Qrcode : utilisation de { facingMode: "environment" }
             const config = { 
-                fps: 20, 
+                fps: 15, 
                 qrbox: { width: 320, height: 160 },
                 aspectRatio: 16/9
             };
 
-            html5QrCode.start(constraints, config, onScanSuccess)
-                .then(() => {
-                    document.getElementById('btn-start').disabled = true;
-                    document.getElementById('btn-stop').disabled = false;
-                    try {
-                        const videoTrack = html5QrCode.getRunningTrack();
-                        if (videoTrack && videoTrack.applyConstraints) {
-                            videoTrack.applyConstraints({
-                                advanced: [{ focusMode: "continuous" }, { zoom: 1.0 }]
-                            }).catch(e => console.log(e));
-                        }
-                    } catch(err) {}
-                }).catch(err => alert("Erreur d'accès à la caméra HD : " + err));
+            html5QrCode.start(
+                { facingMode: "environment" }, 
+                config, 
+                onScanSuccess
+            ).then(() => {
+                document.getElementById('btn-start').disabled = true;
+                document.getElementById('btn-stop').disabled = false;
+            }).catch(err => alert("Erreur d'accès à la caméra : " + err));
         }
 
         function stopScanner() {
@@ -409,12 +399,10 @@
             if (navigator.vibrate) navigator.vibrate(100);
         }
 
-        // --- RECHERCHE INSTANTANÉE ADAPTÉE À VOTRE FICHIER ---
         function rechercherParCodeBarres() {
             const barcode = document.getElementById('barcode').value.trim();
             if (!barcode) return;
 
-            // Normalisation pour comparer sans espaces superflus
             const cleanBarcode = barcode.toLowerCase();
 
             if (pricelist[cleanBarcode]) {
@@ -432,7 +420,6 @@
             }
         }
 
-        // --- IMPORTATION EXCEL ADAPTÉE À VOTRE STRUCTURE ---
         function importerPricelistExcel(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -452,14 +439,12 @@
                         const row = rows[i];
                         if (!row || row.length === 0) continue;
 
-                        let desc = row[0] ? String(row[0]).trim() : ''; // Colonne A (Description)
-                        let prixVal = row[5] !== undefined ? parseFloat(String(row[5]).replace(',', '.')) : 0; // Colonne F (Prix gros HT)
+                        let desc = row[0] ? String(row[0]).trim() : ''; 
+                        let prixVal = row[5] !== undefined ? parseFloat(String(row[5]).replace(',', '.')) : 0; 
                         
                         let barcode = '';
-                        // Parcourt toute la ligne pour trouver le code-barres (souvent dans la dernière colonne ou vers la fin)
                         for (let c = row.length - 1; c >= 0; c--) {
                             let val = row[c] ? String(row[c]).trim() : '';
-                            // Si la valeur ressemble à un code barre (chiffres ou référence alphanumérique consistante)
                             if (val && val.toLowerCase() !== 'colonne1' && val.toLowerCase() !== 'code' && val.length >= 4) {
                                 barcode = val;
                                 break;
@@ -468,7 +453,6 @@
 
                         let prix = isNaN(prixVal) ? 0 : prixVal;
 
-                        // Ignore les lignes d'en-tête explicatives
                         if (barcode && !barcode.toLowerCase().includes('description') && !barcode.toLowerCase().includes('marqua')) {
                             pricelist[barcode.toLowerCase()] = {
                                 name: desc || 'Produit sans description',
@@ -755,17 +739,17 @@
         function effacerTout() {
             if (confirm("Voulez-vous vraiment TOUT réinitialiser ?")) {
                 stock = {}; historyLog = []; creditsLog = [];
-                localStorage.removeItem('pro_stock_v11');
-                localStorage.removeItem('pro_history_v11');
-                localStorage.removeItem('pro_credits_v11');
+                localStorage.removeItem('pro_stock_v12');
+                localStorage.removeItem('pro_history_v12');
+                localStorage.removeItem('pro_credits_v12');
                 renderTables();
             }
         }
 
         function sauvegarderEtActualiser() {
-            localStorage.setItem('pro_stock_v11', JSON.stringify(stock));
-            localStorage.setItem('pro_history_v11', JSON.stringify(historyLog));
-            localStorage.setItem('pro_credits_v11', JSON.stringify(creditsLog));
+            localStorage.setItem('pro_stock_v12', JSON.stringify(stock));
+            localStorage.setItem('pro_history_v12', JSON.stringify(historyLog));
+            localStorage.setItem('pro_credits_v12', JSON.stringify(creditsLog));
 
             document.getElementById('barcode').value = '';
             document.getElementById('product-name').value = '';
