@@ -210,7 +210,7 @@
         <h3 style="margin-top:0; font-size:1rem; color:#166534;">📊 Gestion des fichiers Excel (.xlsx / .xls)</h3>
         
         <div style="margin-bottom: 10px;">
-            <p style="font-size:0.8rem; color:#475569; margin:0 0 4px 0;"><b>1. Charger la Pricelist :</b> (Description Col A, Prix Gros Col F, Code Col H)</p>
+            <p style="font-size:0.8rem; color:#475569; margin:0 0 4px 0;"><b>1. Charger la Pricelist :</b> (Description Col A, Prix Gros Col F, Code auto)</p>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <button class="btn-success" style="font-size:0.85rem; padding:8px;" onclick="document.getElementById('pricelist-file-input').click()">📁 Charger Pricelist</button>
                 <input type="file" id="pricelist-file-input" accept=".xlsx, .xls" style="display: none;" onchange="importerPricelistExcel(event)" />
@@ -362,8 +362,7 @@
 
     <script>
         let html5QrCode = null;
-        // Nouvelle clé de cache (v2) : abandonne les anciennes données erronées
-        let pricelist = JSON.parse(localStorage.getItem('pro_pricelist_v2')) || {};
+        let pricelist = JSON.parse(localStorage.getItem('pro_pricelist_excel')) || {};
         let stock = JSON.parse(localStorage.getItem('pro_stock_v12')) || {};
         let historyLog = JSON.parse(localStorage.getItem('pro_history_v12')) || [];
         let creditsLog = JSON.parse(localStorage.getItem('pro_credits_v12')) || [];
@@ -430,8 +429,6 @@
             }
         }
 
-        // ===== IMPORT PRICELIST (version corrigée) =====
-        // Colonnes repérées par leur en-tête : Description (A), Prix unitaire en gros (F), Colonne1 = code-barres (H)
         function importerPricelistExcel(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -439,39 +436,44 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
-                    const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
                     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-
-                    const header = (rows[0] || []).map(h => String(h).toLowerCase());
-                    const colDesc = 0;
-                    let colPrix = header.findIndex(h => h.includes('unitaire') && h.includes('gros') && !h.includes('total'));
-                    if (colPrix === -1) colPrix = 5;
-                    let colCode = header.findIndex(h => h.trim() === 'colonne1');
-                    if (colCode === -1) colCode = header.length - 1;
+                    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
                     pricelist = {};
                     let count = 0;
 
-                    for (let i = 1; i < rows.length; i++) {
+                    for (let i = 0; i < rows.length; i++) {
                         const row = rows[i];
-                        const desc = String(row[colDesc] ?? '').trim();
-                        const code = String(row[colCode] ?? '').trim();
+                        if (!row || row.length === 0) continue;
 
-                        // Ignore les lignes vides, sans description, ou avec un code absent / "0"
-                        if (!desc || code.length < 4) continue;
+                        let desc = row[0] ? String(row[0]).trim() : ''; 
+                        let prixVal = row[5] !== undefined ? parseFloat(String(row[5]).replace(',', '.')) : 0; 
+                        
+                        let barcode = '';
+                        for (let c = row.length - 1; c >= 0; c--) {
+                            let val = row[c] ? String(row[c]).trim() : '';
+                            if (val && val.toLowerCase() !== 'colonne1' && val.toLowerCase() !== 'code' && val.length >= 4) {
+                                barcode = val;
+                                break;
+                            }
+                        }
 
-                        const prix = parseFloat(String(row[colPrix]).replace(',', '.'));
-                        pricelist[code.toLowerCase()] = {
-                            name: desc,
-                            price: isNaN(prix) ? 0 : prix
-                        };
-                        count++;
+                        let prix = isNaN(prixVal) ? 0 : prixVal;
+
+                        if (barcode && !barcode.toLowerCase().includes('description') && !barcode.toLowerCase().includes('marqua')) {
+                            pricelist[barcode.toLowerCase()] = {
+                                name: desc || 'Produit sans description',
+                                price: prix
+                            };
+                            count++;
+                        }
                     }
 
-                    localStorage.setItem('pro_pricelist_v2', JSON.stringify(pricelist));
+                    localStorage.setItem('pro_pricelist_excel', JSON.stringify(pricelist));
                     verifierStatutPricelist();
-                    alert(`Pricelist importée : ${count} articles avec leur description.`);
+                    alert(`Pricelist importée avec succès ! ${count} articles référencés avec leurs descriptions.`);
                 } catch (err) {
                     alert("Erreur de lecture du fichier Excel : " + err);
                 }
