@@ -304,35 +304,35 @@
         </div>
     </div>
 
+    <!-- Élément DOM caché nécessaire pour la lecture de fichier par Html5Qrcode -->
+    <div id="hidden-qr-reader" style="display:none;"></div>
+
     <script>
         let pricelist = JSON.parse(localStorage.getItem('pro_pricelist_excel')) || {};
-        let stock = JSON.parse(localStorage.getItem('pro_stock_v15')) || {};
-        let historyLog = JSON.parse(localStorage.getItem('pro_history_v15')) || [];
-        let creditsLog = JSON.parse(localStorage.getItem('pro_credits_v15')) || [];
+        let stock = JSON.parse(localStorage.getItem('pro_stock_v16')) || {};
+        let historyLog = JSON.parse(localStorage.getItem('pro_history_v16')) || [];
+        let creditsLog = JSON.parse(localStorage.getItem('pro_credits_v16')) || [];
 
         verifierStatutPricelist();
         renderTables();
 
+        // Correction de la lecture photo via la méthode statique correcte de Html5Qrcode
         function scannedFromFile(e) {
             if (e.target.files.length === 0) return;
             const imageFile = e.target.files[0];
-            const html5QrCodeFile = new Html5Qrcode("hidden-reader");
-            
-            let tempDiv = document.getElementById('hidden-reader');
-            if (!tempDiv) {
-                tempDiv = document.createElement('div');
-                tempDiv.id = 'hidden-reader';
-                tempDiv.style.display = 'none';
-                document.body.appendChild(tempDiv);
-            }
 
-            html5QrCodeFile.scanFile(imageFile, true)
+            Html5Qrcode.scanFile("hidden-qr-reader", imageFile, true)
                 .then(decodedText => {
                     document.getElementById('barcode').value = decodedText;
                     rechercherParCodeBarres();
                     if (navigator.vibrate) navigator.vibrate(100);
+                    // Réinitialise l'input file pour permettre de rescanner le même fichier si besoin
+                    e.target.value = '';
                 })
-                .catch(err => alert("Code-barres non détecté sur cette photo. Assurez-vous qu'il est bien visible et net."));
+                .catch(err => {
+                    alert("Code-barres non détecté sur cette photo. Essayez d'approcher un peu plus ou d'assurer un bon éclairage.");
+                    e.target.value = '';
+                });
         }
 
         function rechercherParCodeBarres() {
@@ -375,7 +375,6 @@
                         const row = rows[i];
                         if (!row || row.length === 0) continue;
 
-                        // Extraction robuste de la description (colonne A ou première cellule non vide)
                         let desc = '';
                         for (let c = 0; c < row.length; c++) {
                             let val = row[c] ? String(row[c]).trim() : '';
@@ -385,10 +384,8 @@
                             }
                         }
 
-                        // Prix unitaire gros (Colonne F, index 5)
                         let prixVal = row[5] !== undefined ? parseFloat(String(row[5]).replace(',', '.')) : 0;
                         
-                        // Code-barres (recherche à la fin de la ligne)
                         let barcode = '';
                         for (let c = row.length - 1; c >= 0; c--) {
                             let val = row[c] ? String(row[c]).trim() : '';
@@ -411,7 +408,7 @@
 
                     localStorage.setItem('pro_pricelist_excel', JSON.stringify(pricelist));
                     verifierStatutPricelist();
-                    alert(`Pricelist importée avec succès ! ${count} articles référencés avec leurs descriptions.`);
+                    alert(`Pricelist importée avec succès ! ${count} articles référencés.`);
                 } catch (err) {
                     alert("Erreur de lecture du fichier Excel : " + err);
                 }
@@ -686,17 +683,17 @@
         function effacerTout() {
             if (confirm("Voulez-vous vraiment TOUT réinitialiser ?")) {
                 stock = {}; historyLog = []; creditsLog = [];
-                localStorage.removeItem('pro_stock_v15');
-                localStorage.removeItem('pro_history_v15');
-                localStorage.removeItem('pro_credits_v15');
+                localStorage.removeItem('pro_stock_v16');
+                localStorage.removeItem('pro_history_v16');
+                localStorage.removeItem('pro_credits_v16');
                 renderTables();
             }
         }
 
         function sauvegarderEtActualiser() {
-            localStorage.setItem('pro_stock_v15', JSON.stringify(stock));
-            localStorage.setItem('pro_history_v15', JSON.stringify(historyLog));
-            localStorage.setItem('pro_credits_v15', JSON.stringify(creditsLog));
+            localStorage.setItem('pro_stock_v16', JSON.stringify(stock));
+            localStorage.setItem('pro_history_v16', JSON.stringify(historyLog));
+            localStorage.setItem('pro_credits_v16', JSON.stringify(creditsLog));
 
             document.getElementById('barcode').value = '';
             document.getElementById('product-name').value = '';
