@@ -1,869 +1,235 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Stock & Scanner Pro</title>
-
-    <!-- Inclusion de la bibliothèque de scan Html5-QRCode -->
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-    
-    <!-- Inclusion de la bibliothèque SheetJS pour lire/écrire les fichiers Excel (.xlsx) -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
-    <style>
-        * {
-            box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
-        body {
-            background-color: #f4f6f8;
-            margin: 0;
-            padding: 16px;
-            color: #333;
-        }
-        h1 {
-            text-align: center;
-            font-size: 1.3rem;
-            margin-top: 0;
-            color: #1e293b;
-        }
-        .card {
-            background: #ffffff;
-            padding: 16px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            margin-bottom: 16px;
-        }
-
-        /* Zone Scanner */
-        #reader-container {
-            position: relative;
-            width: 100%;
-            border-radius: 12px;
-            overflow: hidden;
-            background: #0f172a;
-            border: 2px solid #2563eb;
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
-        }
-        #reader {
-            width: 100% !important;
-            min-height: 300px;
-            border: none !important;
-        }
-        #reader video {
-            object-fit: cover !important;
-            width: 100% !important;
-            height: 300px !important;
-            border-radius: 10px;
-        }
-        .scan-laser {
-            position: absolute;
-            top: 50%;
-            left: 10%;
-            right: 10%;
-            height: 2px;
-            background-color: #ef4444;
-            box-shadow: 0 0 8px #ef4444;
-            z-index: 10;
-            pointer-events: none;
-        }
-        .scan-instruction {
-            text-align: center;
-            font-size: 0.8rem;
-            color: #64748b;
-            margin-top: 6px;
-            font-weight: 500;
-        }
-
-        .form-group {
-            margin-bottom: 12px;
-        }
-        label {
-            display: block;
-            font-weight: 600;
-            margin-bottom: 4px;
-            font-size: 0.9rem;
-        }
-        input[type="text"], input[type="number"], select {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            font-size: 1rem;
-            background: #fff;
-        }
-        .btn-group {
-            display: flex;
-            gap: 8px;
-        }
-        button {
-            flex: 1;
-            padding: 12px;
-            border: none;
-            border-radius: 6px;
-            font-weight: 600;
-            font-size: 0.95rem;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .btn-primary { background-color: #2563eb; color: white; }
-        .btn-success { background-color: #16a34a; color: white; }
-        .btn-warning { background-color: #d97706; color: white; }
-        .btn-info { background-color: #0284c7; color: white; }
-        .btn-danger { background-color: #dc2626; color: white; }
-        .btn-secondary { background-color: #64748b; color: white; }
-        button:disabled { opacity: 0.6; cursor: not-allowed; }
-
-        /* Statistiques */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-        .stat-box {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            padding: 8px;
-            border-radius: 8px;
-            text-align: center;
-        }
-        .stat-value {
-            font-size: 1rem;
-            font-weight: bold;
-            color: #2563eb;
-        }
-        .stat-label {
-            font-size: 0.7rem;
-            color: #64748b;
-        }
-
-        /* Onglets */
-        .tabs {
-            display: flex;
-            gap: 4px;
-            margin-bottom: 12px;
-            overflow-x: auto;
-        }
-        .tab-btn {
-            background: #e2e8f0;
-            color: #475569;
-            border: none;
-            padding: 8px;
-            border-radius: 6px;
-            font-size: 0.8rem;
-            cursor: pointer;
-            flex: 1;
-            white-space: nowrap;
-        }
-        .tab-btn.active {
-            background: #2563eb;
-            color: white;
-            font-weight: bold;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 8px;
-        }
-        th, td {
-            padding: 8px;
-            text-align: left;
-            border-bottom: 1px solid #e2e8f0;
-            font-size: 0.85rem;
-        }
-        th {
-            background-color: #f8fafc;
-            color: #475569;
-        }
-        .badge {
-            background: #dbeafe;
-            color: #1e40af;
-            padding: 3px 8px;
-            border-radius: 12px;
-            font-weight: bold;
-        }
-        .badge-vente { background: #fee2e2; color: #991b1b; }
-        .badge-achat { background: #dcfce7; color: #166534; }
-        .badge-credit { background: #fef3c7; color: #b45309; }
-        .badge-acompte { background: #e0f2fe; color: #0369a1; }
-
-        .btn-action-icon {
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            font-size: 0.9rem;
-            padding: 2px 4px;
-        }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#d6336c">
+<title>Scanner de prix</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+/* VOICE: boutique, net, rapide — une étiquette de prix lisible à un mètre
+   IDEA: l'étiquette de rayon / ticket de caisse
+   PICTURE: la fiche produit scannée, photo + gros prix
+   COLOUR and TYPE: blanc, encre, rose gloss #d6336c en accent ; Archivo
+   LAYOUT: barre de recherche en haut, caméra, fiche produit, liste */
+:root{color-scheme:light dark;--bg:light-dark(#f6f4f2,#141214);--card:light-dark(#fff,#1f1c1f);--ink:light-dark(#18161a,#f3eff2);--mute:light-dark(#6d6870,#a39ca4);--line:light-dark(#e4dfe2,#332e33);--acc:#d6336c;--ok:#2b8a3e;--warn:#c92a2a}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Archivo,system-ui,sans-serif;overflow-x:clip}
+header{background:var(--acc);color:#fff;padding:14px max(4vw,14px);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+header h1{font-size:22px;margin:0;font-weight:900;flex:1}
+header small{opacity:.85}
+main{max-width:760px;margin:0 auto;padding:14px max(4vw,14px) 60px;display:grid;gap:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+input[type=search]{flex:1;font:inherit;font-size:17px;padding:12px 14px;border:2px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);min-height:48px}
+input:focus,button:focus-visible{outline:3px solid color-mix(in srgb,var(--acc) 50%,transparent);outline-offset:1px}
+button,.btn{font:inherit;font-weight:700;min-height:48px;padding:0 16px;border-radius:10px;border:2px solid var(--acc);background:var(--acc);color:#fff;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+button.ghost,.btn.ghost{background:transparent;color:var(--acc)}
+header .btn{border-color:#fff;background:#fff;color:var(--acc)}
+#reader{border-radius:12px;overflow:hidden;background:#000;display:none}
+#reader.on{display:block}
+.tag{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr)}
+.tag .ph{background:#fff;display:grid;place-items:center;aspect-ratio:1}
+.tag .ph img{max-width:100%;max-height:100%;object-fit:contain}
+.tag .ph span{color:#aaa;font-size:13px}
+.tag .info{padding:16px 18px;display:grid;gap:6px;align-content:start;border-left:3px dashed var(--line)}
+.code{color:var(--mute);font-size:14px;font-variant-numeric:tabular-nums}
+.name{font-size:20px;font-weight:700;line-height:1.2;text-wrap:balance}
+.price{font-size:clamp(38px,9vw,52px);font-weight:900;line-height:1.05;color:var(--acc);white-space:nowrap}
+.price small{font-size:.45em;font-weight:700}
+.old{text-decoration:line-through;color:var(--mute);font-size:18px;white-space:nowrap}
+.stock{font-weight:700}.stock.z{color:var(--warn)}.stock.p{color:var(--ok)}
+.cost{color:var(--mute);font-size:14px}
+.det{color:var(--mute);font-size:14px}
+.msg{padding:14px 16px;border-radius:12px;background:var(--card);border:1px solid var(--line)}
+.msg.err{border-color:var(--warn);color:var(--warn);font-weight:700}
+.empty{text-align:center;padding:34px 16px;background:var(--card);border:2px dashed var(--line);border-radius:14px;color:var(--mute)}
+.empty b{display:block;color:var(--ink);font-size:19px;margin-bottom:6px}
+ul.list{list-style:none;margin:0;padding:0;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+ul.list li{display:flex;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);cursor:pointer;min-height:48px}
+ul.list li:first-child{border-top:0}
+ul.list li:hover{background:color-mix(in srgb,var(--acc) 7%,transparent)}
+ul.list .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ul.list .p{font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.opts{display:flex;gap:16px;flex-wrap:wrap;color:var(--mute);font-size:14px}
+.opts label{display:flex;gap:6px;align-items:center;min-height:32px}
+.hide{display:none!important}
+@media(max-width:560px){.tag{grid-template-columns:1fr}.tag .ph{aspect-ratio:auto;height:220px}.tag .info{border-left:0;border-top:3px dashed var(--line)}}
+@media(prefers-reduced-motion:no-preference){.tag{animation:pop .25s ease-out}@keyframes pop{from{transform:scale(.97);opacity:.4}}}
+</style>
 </head>
 <body>
-
-    <h1>📦 Stock & Scanner Pro</h1>
-
-    <!-- Gestion des Importations Excel -->
-    <div class="card" style="background: #f0fdf4; border: 1px solid #bbf7d0;">
-        <h3 style="margin-top:0; font-size:1rem; color:#166534;">📊 Gestion des fichiers Excel (.xlsx / .xls)</h3>
-        
-        <div style="margin-bottom: 10px;">
-            <p style="font-size:0.8rem; color:#475569; margin:0 0 4px 0;"><b>1. Charger la Pricelist :</b> (Description Col A, Prix Gros Col F, Code auto)</p>
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <button class="btn-success" style="font-size:0.85rem; padding:8px;" onclick="document.getElementById('pricelist-file-input').click()">📁 Charger Pricelist</button>
-                <input type="file" id="pricelist-file-input" accept=".xlsx, .xls" style="display: none;" onchange="importerPricelistExcel(event)" />
-                <span id="pricelist-status" style="font-size: 0.8rem; color: #16a34a; font-weight: bold;">Aucune pricelist chargée</span>
-            </div>
-        </div>
-
-        <div>
-            <p style="font-size:0.8rem; color:#475569; margin:0 0 4px 0;"><b>2. Restaurer un inventaire exporté :</b></p>
-            <button class="btn-info" style="font-size:0.85rem; padding:8px; width:100%;" onclick="document.getElementById('inventory-file-input').click()">📤 Importer inventaire (.xlsx)</button>
-            <input type="file" id="inventory-file-input" accept=".xlsx, .xls" style="display: none;" onchange="importerInventaireExcel(event)" />
-        </div>
-    </div>
-
-    <!-- Zone Scanner avec option Photo -->
-    <div class="card">
-        <div id="reader-container">
-            <div id="reader"></div>
-            <div class="scan-laser"></div>
-        </div>
-        <div class="scan-instruction">💡 Tenez le téléphone à 25-30 cm pour garder l'image nette</div>
-        
-        <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
-            <div class="btn-group">
-                <button id="btn-start" class="btn-primary" onclick="startScanner()">📷 Activer la caméra</button>
-                <button id="btn-stop" class="btn-secondary" onclick="stopScanner()" disabled>⏹️ Arrêter</button>
-            </div>
-            <!-- Option de secours : Scan par photo instantanée -->
-            <button class="btn-info" style="font-size: 0.85rem;" onclick="document.getElementById('qr-input-file').click()">🖼️ Prenez une photo du code-barres (Ultra-net)</button>
-            <input type="file" id="qr-input-file" accept="image/*" capture="environment" style="display:none" onchange="scannedFromFile(event)">
-        </div>
-    </div>
-
-    <!-- Saisie -->
-    <div class="card">
-        <div class="form-group">
-            <label for="client-name">Nom du Client :</label>
-            <input type="text" id="client-name" placeholder="Ex: Client X / Comptoir" />
-        </div>
-        <div class="form-group">
-            <label for="barcode">Code-barres scanné ou saisi :</label>
-            <input type="text" id="barcode" placeholder="Scannez ou tapez le code..." oninput="rechercherParCodeBarres()" onblur="rechercherParCodeBarres()" />
-        </div>
-        <div class="form-group">
-            <label for="product-name">Nom du Produit :</label>
-            <input type="text" id="product-name" placeholder="Rempli auto via la pricelist..." />
-        </div>
-        <div class="form-group">
-            <label for="quantity">Quantité :</label>
-            <input type="number" id="quantity" value="1" min="1" />
-        </div>
-        <div class="form-group">
-            <label for="price">Prix unitaire (DZD) :</label>
-            <input type="number" id="price" value="0.00" step="0.01" min="0" placeholder="Prix auto" />
-        </div>
-        <div class="form-group">
-            <label for="payment-status">Statut du paiement :</label>
-            <select id="payment-status">
-                <option value="paye">Payé (Comptant)</option>
-                <option value="credit">À Crédit (Non payé)</option>
-            </select>
-        </div>
-        
-        <div class="btn-group" style="flex-direction: column; gap: 8px;">
-            <div style="display: flex; gap: 8px; width: 100%;">
-                <button class="btn-success" onclick="modifierStock('ajout')" style="flex:1;">➕ Entrée Stock (Achat)</button>
-                <button class="btn-warning" onclick="modifierStock('vente')" style="flex:1;">➖ Vente (Sortie)</button>
-            </div>
-            <button class="btn-info" onclick="encaisserSansLivraison()">💵 Encaisser sans livrer (Acompte)</button>
-        </div>
-    </div>
-
-    <!-- Tableau de bord -->
-    <div class="card">
-        <div class="stats-grid">
-            <div class="stat-box">
-                <div class="stat-value" id="stat-total">0</div>
-                <div class="stat-label">Articles en stock</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-value" id="stat-ca" style="color: #16a34a;">0.00 DZD</div>
-                <div class="stat-label">CA Encaissé</div>
-            </div>
-            <div class="stat-box" style="grid-column: span 2;">
-                <div class="stat-value" id="stat-credit" style="color: #d97706;">0.00 DZD</div>
-                <div class="stat-label">Total Crédits Clients</div>
-            </div>
-        </div>
-
-        <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('stock')">📋 Stock</button>
-            <button class="tab-btn" onclick="switchTab('history')">📜 Mouvements</button>
-            <button class="tab-btn" onclick="switchTab('credits')">⏳ Crédits</button>
-        </div>
-
-        <!-- Onglet Stock -->
-        <div id="view-stock" class="tab-content active">
-            <div class="form-group">
-                <input type="text" id="search-input" placeholder="🔍 Filtrer le stock (code ou nom)..." oninput="renderTables()" />
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Produit / Code</th>
-                        <th>Qté</th>
-                        <th>Prix U. (DZD)</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="stock-list"></tbody>
-            </table>
-        </div>
-
-        <!-- Onglet Historique -->
-        <div id="view-history" class="tab-content">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date/Client</th>
-                        <th>Type/Produit</th>
-                        <th>Qté/Total</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="history-list"></tbody>
-            </table>
-        </div>
-
-        <!-- Onglet Crédits -->
-        <div id="view-credits" class="tab-content">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Client</th>
-                        <th>Détail</th>
-                        <th>Reste Dû</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody id="credit-list"></tbody>
-            </table>
-        </div>
-
-        <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 8px;">
-            <button class="btn-secondary" style="font-size: 0.85rem;" onclick="exporterExcel()">📥 Exporter l'inventaire en .xlsx</button>
-            <button class="btn-danger" style="font-size: 0.85rem;" onclick="effacerTout()">🗑️ Tout effacer</button>
-        </div>
-    </div>
-
-    <script>
-        let html5QrCode = null;
-        let pricelist = JSON.parse(localStorage.getItem('pro_pricelist_excel')) || {};
-        let stock = JSON.parse(localStorage.getItem('pro_stock_v12')) || {};
-        let historyLog = JSON.parse(localStorage.getItem('pro_history_v12')) || [];
-        let creditsLog = JSON.parse(localStorage.getItem('pro_credits_v12')) || [];
-
-        verifierStatutPricelist();
-        renderTables();
-
-        function startScanner() {
-            if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
-            const config = { fps: 15, qrbox: { width: 320, height: 160 }, aspectRatio: 16/9 };
-
-            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
-                .then(() => {
-                    document.getElementById('btn-start').disabled = true;
-                    document.getElementById('btn-stop').disabled = false;
-                }).catch(err => alert("Erreur d'accès à la caméra : " + err));
-        }
-
-        function stopScanner() {
-            if (html5QrCode) {
-                html5QrCode.stop().then(() => {
-                    document.getElementById('btn-start').disabled = false;
-                    document.getElementById('btn-stop').disabled = true;
-                });
-            }
-        }
-
-        function onScanSuccess(decodedText) {
-            document.getElementById('barcode').value = decodedText;
-            rechercherParCodeBarres();
-            if (navigator.vibrate) navigator.vibrate(100);
-        }
-
-        // Decodage d'une photo prise directement avec l'app native
-        function scannedFromFile(e) {
-            if (e.target.files.length === 0) return;
-            const imageFile = e.target.files[0];
-            const html5QrCodeFile = new Html5Qrcode("reader");
-            html5QrCodeFile.scanFile(imageFile, true)
-                .then(decodedText => {
-                    onScanSuccess(decodedText);
-                })
-                .catch(err => alert("Code-barres non détecté sur la photo. Essayez d'encadrer de plus près."));
-        }
-
-        function rechercherParCodeBarres() {
-            const barcode = document.getElementById('barcode').value.trim();
-            if (!barcode) return;
-
-            const cleanBarcode = barcode.toLowerCase();
-
-            if (pricelist[cleanBarcode]) {
-                document.getElementById('product-name').value = pricelist[cleanBarcode].name;
-                document.getElementById('price').value = pricelist[cleanBarcode].price;
-            } else {
-                let foundKey = Object.keys(pricelist).find(k => k.trim().toLowerCase() === cleanBarcode);
-                if (foundKey) {
-                    document.getElementById('product-name').value = pricelist[foundKey].name;
-                    document.getElementById('price').value = pricelist[foundKey].price;
-                } else if (stock[barcode]) {
-                    if (stock[barcode].name) document.getElementById('product-name').value = stock[barcode].name;
-                    if (stock[barcode].lastPrice) document.getElementById('price').value = stock[barcode].lastPrice;
-                }
-            }
-        }
-
-        function importerPricelistExcel(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-                    pricelist = {};
-                    let count = 0;
-
-                    for (let i = 0; i < rows.length; i++) {
-                        const row = rows[i];
-                        if (!row || row.length === 0) continue;
-
-                        let desc = row[0] ? String(row[0]).trim() : ''; 
-                        let prixVal = row[5] !== undefined ? parseFloat(String(row[5]).replace(',', '.')) : 0; 
-                        
-                        let barcode = '';
-                        for (let c = row.length - 1; c >= 0; c--) {
-                            let val = row[c] ? String(row[c]).trim() : '';
-                            if (val && val.toLowerCase() !== 'colonne1' && val.toLowerCase() !== 'code' && val.length >= 4) {
-                                barcode = val;
-                                break;
-                            }
-                        }
-
-                        let prix = isNaN(prixVal) ? 0 : prixVal;
-
-                        if (barcode && !barcode.toLowerCase().includes('description') && !barcode.toLowerCase().includes('marqua')) {
-                            pricelist[barcode.toLowerCase()] = {
-                                name: desc || 'Produit sans description',
-                                price: prix
-                            };
-                            count++;
-                        }
-                    }
-
-                    localStorage.setItem('pro_pricelist_excel', JSON.stringify(pricelist));
-                    verifierStatutPricelist();
-                    alert(`Pricelist importée avec succès ! ${count} articles référencés avec leurs descriptions.`);
-                } catch (err) {
-                    alert("Erreur de lecture du fichier Excel : " + err);
-                }
-            };
-            reader.readAsArrayBuffer(file);
-        }
-
-        function verifierStatutPricelist() {
-            let count = Object.keys(pricelist).length;
-            const statusEl = document.getElementById('pricelist-status');
-            if (count > 0) {
-                statusEl.innerText = `✅ ${count} références chargées (avec descriptions)`;
-                statusEl.style.color = "#16a34a";
-            } else {
-                statusEl.innerText = "⚠️ Aucune pricelist chargée";
-                statusEl.style.color = "#d97706";
-            }
-        }
-
-        function importerInventaireExcel(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const rows = XLSX.utils.sheet_to_json(worksheet);
-
-                    let importedCount = 0;
-                    rows.forEach(row => {
-                        let date = row["Date"] || new Date().toLocaleString();
-                        let client = row["Client"] || "Client Inconnu";
-                        let type = row["Type Mouvement"] || "ACHAT";
-                        let productName = row["Nom du Produit"] || "Produit sans nom";
-                        let barcode = row["Code-barres"] ? String(row["Code-barres"]).trim() : "";
-                        let qty = parseInt(row["Quantité"], 10) || 0;
-                        let price = parseFloat(row["Prix Unitaire (DZD)"]) || 0;
-                        let total = parseFloat(row["Total (DZD)"]) || (qty * price);
-
-                        if (barcode && barcode !== "N/A") {
-                            if (!stock[barcode]) {
-                                stock[barcode] = { qty: 0, name: productName, lastPrice: price };
-                            }
-                            stock[barcode].name = productName;
-                            if (type === "ACHAT") {
-                                stock[barcode].qty += qty;
-                            } else if (type.includes("VENTE")) {
-                                stock[barcode].qty -= qty;
-                            }
-                            stock[barcode].lastPrice = price;
-                        }
-
-                        historyLog.push({
-                            id: Date.now() + Math.random(),
-                            date: date,
-                            client: client,
-                            type: type,
-                            barcode: barcode,
-                            productName: productName,
-                            qty: qty,
-                            price: price,
-                            total: total
-                        });
-                        importedCount++;
-                    });
-
-                    sauvegarderEtActualiser();
-                    alert(`Inventaire importé avec succès ! ${importedCount} mouvements restaurés.`);
-                } catch (err) {
-                    alert("Erreur lors de l'importation de l'inventaire : " + err);
-                }
-            };
-            reader.readAsArrayBuffer(file);
-        }
-
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-            if (tabName === 'stock') {
-                document.getElementById('view-stock').classList.add('active');
-                event.target.classList.add('active');
-            } else if (tabName === 'history') {
-                document.getElementById('view-history').classList.add('active');
-                event.target.classList.add('active');
-            } else {
-                document.getElementById('view-credits').classList.add('active');
-                event.target.classList.add('active');
-            }
-        }
-
-        function modifierStock(type) {
-            const client = document.getElementById('client-name').value.trim() || "Client Inconnu";
-            const barcode = document.getElementById('barcode').value.trim();
-            const productName = document.getElementById('product-name').value.trim() || "Produit sans nom";
-            const quantity = parseInt(document.getElementById('quantity').value, 10);
-            const price = parseFloat(document.getElementById('price').value);
-            const paymentStatus = document.getElementById('payment-status').value;
-
-            if (!barcode) { alert("Veuillez scanner ou saisir un code-barres."); return; }
-            if (isNaN(quantity) || quantity <= 0) { alert("Quantité invalide."); return; }
-            if (isNaN(price) || price < 0) { alert("Prix invalide."); return; }
-
-            if (!stock[barcode]) { 
-                stock[barcode] = { qty: 0, name: productName, lastPrice: price }; 
-            } else {
-                stock[barcode].name = productName;
-            }
-
-            if (type === 'ajout') {
-                stock[barcode].qty += quantity;
-                stock[barcode].lastPrice = price;
-            } else if (type === 'vente') {
-                if (stock[barcode].qty < quantity) {
-                    alert(`Stock insuffisant ! Il reste ${stock[barcode].qty} exemplaire(s).`);
-                    return;
-                }
-                stock[barcode].qty -= quantity;
-                stock[barcode].lastPrice = price;
-            }
-
-            const totalAmount = quantity * price;
-            const now = new Date().toLocaleString();
-            let typeLabel = type === 'ajout' ? 'ACHAT' : (paymentStatus === 'credit' ? 'VENTE CRÉDIT' : 'VENTE');
-
-            historyLog.unshift({
-                id: Date.now(),
-                date: now,
-                client: client,
-                type: typeLabel,
-                barcode: barcode,
-                productName: productName,
-                qty: quantity,
-                price: price,
-                total: totalAmount
-            });
-
-            if (type === 'vente' && paymentStatus === 'credit') {
-                creditsLog.unshift({
-                    id: Date.now(),
-                    client: client,
-                    detail: `${quantity}x ${productName} (${barcode})`,
-                    amount: totalAmount
-                });
-            }
-
-            sauvegarderEtActualiser();
-        }
-
-        function encaisserSansLivraison() {
-            const client = document.getElementById('client-name').value.trim() || "Client Inconnu";
-            const price = parseFloat(document.getElementById('price').value);
-
-            if (isNaN(price) || price <= 0) { alert("Montant d'acompte invalide."); return; }
-
-            const now = new Date().toLocaleString();
-            historyLog.unshift({
-                id: Date.now(),
-                date: now,
-                client: client,
-                type: 'ACOMPTE',
-                barcode: 'N/A',
-                productName: 'Acompte / Avance',
-                qty: 0,
-                price: price,
-                total: price
-            });
-
-            sauvegarderEtActualiser();
-        }
-
-        function editerStock(barcode) {
-            const item = stock[barcode];
-            const nouveauNom = prompt(`Modifier le NOM du produit (${barcode}) :`, item.name || "");
-            if (nouveauNom === null) return;
-
-            const nouvelleQtyStr = prompt(`Modifier la QUANTITÉ :`, item.qty);
-            if (nouvelleQtyStr === null) return;
-            const nouvelleQty = parseInt(nouvelleQtyStr, 10);
-
-            const nouveauPrixStr = prompt(`Modifier le PRIX UNITAIRE (DZD) :`, item.lastPrice);
-            if (nouveauPrixStr === null) return;
-            const nouveauPrix = parseFloat(nouveauPrixStr);
-
-            if (!isNaN(nouvelleQty) && nouvelleQty >= 0 && !isNaN(nouveauPrix) && nouveauPrix >= 0) {
-                stock[barcode].name = nouveauNom.trim() || "Produit sans nom";
-                stock[barcode].qty = nouvelleQty;
-                stock[barcode].lastPrice = nouveauPrix;
-                sauvegarderEtActualiser();
-            } else {
-                alert("Valeurs saisies invalides.");
-            }
-        }
-
-        function editerHistorique(id) {
-            const index = historyLog.findIndex(h => h.id === id);
-            if (index === -1) return;
-            const h = historyLog[index];
-
-            const nouveauClient = prompt("Nom du Client :", h.client);
-            if (nouveauClient === null) return;
-
-            const nouveauNomProduit = prompt("Nom du Produit :", h.productName || "");
-            if (nouveauNomProduit === null) return;
-
-            const nouvelleQtyStr = prompt("Quantité :", h.qty);
-            if (nouvelleQtyStr === null) return;
-            const nouvelleQty = parseInt(nouvelleQtyStr, 10);
-
-            const nouveauPrixStr = prompt("Prix unitaire (DZD) :", h.price || 0);
-            if (nouveauPrixStr === null) return;
-            const nouveauPrix = parseFloat(nouveauPrixStr);
-
-            if (!isNaN(nouvelleQty) && !isNaN(nouveauPrix)) {
-                historyLog[index].client = nouveauClient.trim() || "Client Inconnu";
-                historyLog[index].productName = nouveauNomProduit.trim() || "Produit sans nom";
-                historyLog[index].qty = nouvelleQty;
-                historyLog[index].price = nouveauPrix;
-                historyLog[index].total = nouvelleQty * nouveauPrix;
-                sauvegarderEtActualiser();
-            }
-        }
-
-        function reglerCredit(id) {
-            const index = creditsLog.findIndex(c => c.id === id);
-            if (index === -1) return;
-            const credit = creditsLog[index];
-
-            const paiementStr = prompt(`Montant réglé par ${credit.client} (Total dû : ${credit.amount.toFixed(2)} DZD) :`, credit.amount);
-            if (paiementStr === null) return;
-            const paiement = parseFloat(paiementStr);
-
-            if (isNaN(paiement) || paiement <= 0) { alert("Montant invalide."); return; }
-
-            if (paiement >= credit.amount) {
-                creditsLog.splice(index, 1);
-            } else {
-                creditsLog[index].amount -= paiement;
-            }
-
-            historyLog.unshift({
-                id: Date.now(),
-                date: new Date().toLocaleString(),
-                client: credit.client,
-                type: 'ACOMPTE',
-                barcode: 'Règlement Crédit',
-                productName: 'Règlement partiel/total',
-                qty: 0,
-                price: paiement,
-                total: paiement
-            });
-
-            sauvegarderEtActualiser();
-        }
-
-        function supprimerStock(barcode) {
-            if (confirm(`Supprimer complètement ${barcode} du stock ?`)) {
-                delete stock[barcode];
-                sauvegarderEtActualiser();
-            }
-        }
-
-        function supprimerHistorique(id) {
-            if (confirm("Supprimer cette ligne d'historique ?")) {
-                historyLog = historyLog.filter(h => h.id !== id);
-                sauvegarderEtActualiser();
-            }
-        }
-
-        function effacerTout() {
-            if (confirm("Voulez-vous vraiment TOUT réinitialiser ?")) {
-                stock = {}; historyLog = []; creditsLog = [];
-                localStorage.removeItem('pro_stock_v12');
-                localStorage.removeItem('pro_history_v12');
-                localStorage.removeItem('pro_credits_v12');
-                renderTables();
-            }
-        }
-
-        function sauvegarderEtActualiser() {
-            localStorage.setItem('pro_stock_v12', JSON.stringify(stock));
-            localStorage.setItem('pro_history_v12', JSON.stringify(historyLog));
-            localStorage.setItem('pro_credits_v12', JSON.stringify(creditsLog));
-
-            document.getElementById('barcode').value = '';
-            document.getElementById('product-name').value = '';
-            document.getElementById('client-name').value = '';
-            document.getElementById('quantity').value = 1;
-            document.getElementById('price').value = '0.00';
-            renderTables();
-        }
-
-        function renderTables() {
-            const tbodyStock = document.getElementById('stock-list');
-            const searchFilter = document.getElementById('search-input').value.toLowerCase().trim();
-            tbodyStock.innerHTML = '';
-            let keys = Object.keys(stock), totalUnits = 0;
-            keys.forEach(k => totalUnits += stock[k].qty);
-            document.getElementById('stat-total').innerText = totalUnits;
-
-            const filteredKeys = keys.filter(barcode => {
-                let item = stock[barcode];
-                let nameMatch = item.name && item.name.toLowerCase().includes(searchFilter);
-                let codeMatch = barcode.toLowerCase().includes(searchFilter);
-                return nameMatch || codeMatch;
-            });
-
-            if (filteredKeys.length === 0) {
-                tbodyStock.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8;">Aucun produit</td></tr>';
-            } else {
-                filteredKeys.forEach(barcode => {
-                    let item = stock[barcode];
-                    tbodyStock.innerHTML += `<tr>
-                        <td><b>${item.name || 'Sans nom'}</b><br><code style="font-size:0.75rem; color:#64748b;">${barcode}</code></td>
-                        <td><span class="badge">${item.qty}</span></td>
-                        <td>${item.lastPrice.toFixed(2)} DZD</td>
-                        <td>
-                            <button class="btn-action-icon" onclick="editerStock('${barcode}')" title="Modifier">✏️</button>
-                            <button class="btn-action-icon" onclick="supprimerStock('${barcode}')" title="Supprimer">❌</button>
-                        </td>
-                    </tr>`;
-                });
-            }
-
-            let totalCA = 0, totalCredit = 0;
-            historyLog.forEach(h => {
-                if (h.type === 'VENTE' || h.type === 'ACOMPTE') totalCA += h.total;
-            });
-            creditsLog.forEach(c => totalCredit += c.amount);
-
-            document.getElementById('stat-ca').innerText = totalCA.toFixed(2) + " DZD";
-            document.getElementById('stat-credit').innerText = totalCredit.toFixed(2) + " DZD";
-
-            const tbodyHistory = document.getElementById('history-list');
-            tbodyHistory.innerHTML = '';
-            if (historyLog.length === 0) {
-                tbodyHistory.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8;">Aucun mouvement</td></tr>';
-            } else {
-                historyLog.forEach(h => {
-                    let bClass = h.type === 'ACHAT' ? 'badge-achat' : (h.type === 'VENTE CRÉDIT' ? 'badge-credit' : (h.type === 'ACOMPTE' ? 'badge-acompte' : 'badge-vente'));
-                    tbodyHistory.innerHTML += `<tr>
-                        <td><span style="font-size:0.7rem; color:#64748b;">${h.date}</span><br><b>${h.client}</b></td>
-                        <td><span class="badge ${bClass}">${h.type}</span><br><b>${h.productName || 'N/A'}</b> <code style="font-size:0.7rem;">(${h.barcode})</code></td>
-                        <td>${h.qty} x ${h.price ? h.price.toFixed(2) : 0}DZD<br><b>${h.total.toFixed(2)} DZD</b></td>
-                        <td>
-                            <button class="btn-action-icon" onclick="editerHistorique(${h.id})" title="Modifier">✏️</button>
-                            <button class="btn-action-icon" onclick="supprimerHistorique(${h.id})" title="Supprimer">❌</button>
-                        </td>
-                    </tr>`;
-                });
-            }
-
-            const tbodyCredit = document.getElementById('credit-list');
-            tbodyCredit.innerHTML = '';
-            if (creditsLog.length === 0) {
-                tbodyCredit.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8;">Aucun crédit en cours 🎉</td></tr>';
-            } else {
-                creditsLog.forEach(c => {
-                    tbodyCredit.innerHTML += `<tr>
-                        <td><b>${c.client}</b></td>
-                        <td>${c.detail}</td>
-                        <td style="color:#d97706; font-weight:bold;">${c.amount.toFixed(2)} DZD</td>
-                        <td><button class="btn-success" style="padding:4px 8px; font-size:0.75rem;" onclick="reglerCredit(${c.id})">💵 Régler</button></td>
-                    </tr>`;
-                });
-            }
-        }
-
-        function exporterExcel() {
-            if (historyLog.length === 0) { alert("Rien à exporter."); return; }
-
-            const dataToExport = historyLog.map(h => ({
-                "Date": h.date,
-                "Client": h.client,
-                "Type Mouvement": h.type,
-                "Nom du Produit": h.productName || '',
-                "Code-barres": h.barcode,
-                "Quantité": h.qty,
-                "Prix Unitaire (DZD)": h.price,
-                "Total (DZD)": h.total
-            }));
-
-            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Mouvements Stock");
-
-            XLSX.writeFile(workbook, `export_stock_${new Date().toISOString().slice(0,10)}.xlsx`);
-        }
-    </script>
+<header>
+  <h1>Scanner de prix <small id="count"></small></h1>
+  <label class="btn" for="file">Charger Excel</label>
+  <input id="file" type="file" accept=".xlsx,.xls,.csv" class="hide">
+</header>
+<main>
+  <div class="row">
+    <input id="q" type="search" placeholder="Code barre ou nom du produit…" autocomplete="off" enterkeyhint="search">
+    <button id="cam" type="button">Scanner</button>
+  </div>
+  <div class="row">
+    <button id="photo" type="button" class="ghost">Scanner depuis une photo</button>
+    <input id="photoIn" type="file" accept="image/*" capture="environment" class="hide">
+  </div>
+  <div id="reader"></div>
+  <div id="out"><div class="empty"><b>Aucun catalogue chargé</b>Touchez « Charger Excel » et choisissez votre fichier Products.xlsx (colonnes barcode, name, price, promoPrice, stock, currency, imageUri…). Il reste enregistré sur ce téléphone.</div></div>
+  <ul id="list" class="list hide"></ul>
+  <div class="opts">
+    <label><input type="checkbox" id="showCost"> Afficher le prix d'achat et la marge</label>
+    <label><input type="checkbox" id="beep" checked> Bip au scan</label>
+    <label><input type="checkbox" id="cont"> Scan continu</label>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+{
+const $ = id => document.getElementById(id);
+const KEY = 'scanner-prix-catalogue';
+let items = [], byCode = new Map(), scanner = null, scanning = false, lastCode = '', lastAt = 0;
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v => { if (v === null || v === undefined || v === '') return null; const n = Number(String(v).replace(/\s/g,'').replace(',','.')); return isNaN(n) ? null : n; };
+const fmt = n => n === null ? '—' : n.toLocaleString('fr-FR', {maximumFractionDigits: 2});
+const norm = c => String(c ?? '').trim().replace(/^0+(?=\d)/, '').toUpperCase();
+
+function pick(row, names) {
+  const keys = Object.keys(row);
+  for (const n of names) {
+    const k = keys.find(k => k.trim().toLowerCase() === n.toLowerCase());
+    if (k !== undefined && row[k] !== '') return row[k];
+  }
+  return '';
+}
+
+function setCatalogue(list, save) {
+  items = list; byCode = new Map();
+  for (const p of items) if (p.barcode) byCode.set(norm(p.barcode), p);
+  $('count').textContent = items.length ? '· ' + items.length + ' produits' : '';
+  if (save) { try { localStorage.setItem(KEY, JSON.stringify(items)); } catch (e) {} }
+  if (items.length) $('out').innerHTML = '<div class="msg">Catalogue prêt : ' + items.length + ' produits. Scannez un article ou tapez son nom.</div>';
+}
+
+function parseSheet(buf) {
+  const wb = XLSX.read(buf, {type: 'array'});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, {defval: '', raw: true});
+  return rows.map(r => ({
+    barcode: String(pick(r, ['barcode','code barre','code-barres','ean'])).trim(),
+    name: String(pick(r, ['name','description','nom','désignation'])).trim(),
+    price: num(pick(r, ['price','prix','prix (dzd ht)','prix public'])),
+    promo: num(pick(r, ['promoPrice','prix promo'])),
+    unit: String(pick(r, ['unit','unité'])).trim(),
+    stock: num(pick(r, ['stock','quantité','qte'])),
+    currency: String(pick(r, ['currency','devise']) || 'DZD').trim(),
+    details: String(pick(r, ['details','détails'])).trim(),
+    img: String(pick(r, ['imageUri','image','photo','image 1'])).trim(),
+    cost: num(pick(r, ['Prix d’achat',"Prix d'achat",'prix achat','cost']))
+  })).filter(p => p.barcode || p.name);
+}
+
+function card(p) {
+  const cur = esc(p.currency || 'DZD');
+  const hasPromo = p.promo !== null && p.promo > 0 && p.promo < (p.price ?? Infinity);
+  const sell = hasPromo ? p.promo : p.price;
+  const st = p.stock === null ? '' : '<div class="stock ' + (p.stock > 0 ? 'p' : 'z') + '">' + (p.stock > 0 ? 'En stock : ' + fmt(p.stock) + (p.unit ? ' ' + esc(p.unit) : '') : 'Rupture de stock') + '</div>';
+  let cost = '';
+  if ($('showCost').checked && p.cost !== null) {
+    const m = sell ? Math.round((sell - p.cost) / sell * 100) : null;
+    cost = '<div class="cost">Prix d\'achat : ' + fmt(p.cost) + ' ' + cur + (m !== null ? ' · marge ' + m + ' %' : '') + '</div>';
+  }
+  const ph = p.img ? '<img src="' + esc(p.img) + '" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{textContent:\'Photo indisponible\'}))">' : '<span>Pas de photo</span>';
+  return '<article class="tag"><div class="ph">' + ph + '</div><div class="info">' +
+    '<div class="code">' + esc(p.barcode) + '</div><div class="name">' + esc(p.name) + '</div>' +
+    (hasPromo ? '<div class="old">' + fmt(p.price) + ' ' + cur + '</div>' : '') +
+    '<div class="price">' + fmt(sell) + ' <small>' + cur + '</small></div>' + st + cost +
+    (p.details ? '<div class="det">' + esc(p.details) + '</div>' : '') + '</div></article>';
+}
+
+function show(p) { $('out').innerHTML = card(p); $('list').classList.add('hide'); }
+
+function beep(ok) {
+  if (!$('beep').checked) return;
+  try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain();
+    o.frequency.value = ok ? 1400 : 300; g.gain.value = .15; o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + (ok ? .12 : .35)); } catch (e) {}
+}
+
+function lookup(code) {
+  code = String(code).trim(); if (!code) return;
+  $('q').value = code;
+  const p = byCode.get(norm(code));
+  if (p) { show(p); beep(true); }
+  else { $('out').innerHTML = '<div class="msg err">Produit introuvable : ' + esc(code) + '</div>'; $('list').classList.add('hide'); beep(false); }
+}
+
+function search(text) {
+  const t = text.trim().toLowerCase();
+  if (!t) { $('list').classList.add('hide'); return; }
+  const exact = byCode.get(norm(t)); if (exact) { show(exact); return; }
+  const words = t.split(/\s+/);
+  const res = items.filter(p => words.every(w => (p.name + ' ' + p.barcode).toLowerCase().includes(w))).slice(0, 40);
+  const ul = $('list');
+  ul.innerHTML = res.length ? res.map(p => '<li data-c="' + esc(p.barcode) + '" data-i="' + items.indexOf(p) + '"><span class="n">' + esc(p.name) + '</span><span class="p">' + fmt(p.promo || p.price) + ' ' + esc(p.currency) + '</span></li>').join('') : '<li>Aucun résultat</li>';
+  ul.classList.remove('hide');
+}
+
+const FORMATS = () => window.Html5QrcodeSupportedFormats ? [ 'EAN_13','EAN_8','UPC_A','UPC_E','CODE_128','CODE_39','CODE_93','ITF','CODABAR','QR_CODE' ].map(f => Html5QrcodeSupportedFormats[f]) : undefined;
+
+async function startCam() {
+  if (scanning) return stopCam();
+  if (!window.Html5Qrcode) { $('out').innerHTML = '<div class="msg err">Le module de scan n\'a pas pu se charger (connexion internet nécessaire au premier lancement).</div>'; return; }
+  $('reader').classList.add('on');
+  scanner = scanner || new Html5Qrcode('reader', {formatsToSupport: FORMATS(), useBarCodeDetectorIfSupported: true, verbose: false});
+  try {
+    await scanner.start({facingMode: 'environment'}, {fps: 12, qrbox: (w, h) => ({width: Math.floor(w * .85), height: Math.floor(Math.min(h * .5, 180))})}, code => {
+      const now = Date.now();
+      if (code === lastCode && now - lastAt < 2500) return;
+      lastCode = code; lastAt = now; lookup(code);
+      if (!$('cont').checked) stopCam();
+    });
+    scanning = true; $('cam').textContent = 'Arrêter';
+  } catch (e) {
+    $('reader').classList.remove('on');
+    $('out').innerHTML = '<div class="msg err">Caméra inaccessible. Autorisez la caméra pour ce site (la page doit être ouverte en https), ou utilisez « Scanner depuis une photo ».</div>';
+  }
+}
+async function stopCam() {
+  if (scanner && scanning) { try { await scanner.stop(); } catch (e) {} }
+  scanning = false; $('reader').classList.remove('on'); $('cam').textContent = 'Scanner';
+}
+
+$('cam').addEventListener('click', startCam);
+$('photo').addEventListener('click', () => $('photoIn').click());
+$('photoIn').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  if (!window.Html5Qrcode) return;
+  await stopCam();
+  const tmp = new Html5Qrcode('reader', {formatsToSupport: FORMATS(), useBarCodeDetectorIfSupported: true, verbose: false});
+  try { lookup(await tmp.scanFile(f, false)); }
+  catch (err) { $('out').innerHTML = '<div class="msg err">Aucun code barre lisible sur la photo. Réessayez plus près, bien à plat et éclairé.</div>'; beep(false); }
+  try { tmp.clear(); } catch (e) {}
+});
+
+$('file').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  if (!window.XLSX) { $('out').innerHTML = '<div class="msg err">Le lecteur Excel n\'a pas pu se charger (connexion internet nécessaire).</div>'; return; }
+  try { const list = parseSheet(await f.arrayBuffer());
+    if (!list.length) throw new Error('vide');
+    setCatalogue(list, true);
+  } catch (err) { $('out').innerHTML = '<div class="msg err">Fichier illisible. Vérifiez que la 1re ligne contient les en-têtes (barcode, name, price…).</div>'; }
+});
+
+$('q').addEventListener('input', e => search(e.target.value));
+$('q').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const v = e.target.value; if (byCode.has(norm(v))) lookup(v); else search(v); } });
+$('list').addEventListener('click', e => { const li = e.target.closest('li[data-i]'); if (li) { const p = items[+li.dataset.i]; $('q').value = p.barcode; show(p); } });
+$('showCost').addEventListener('change', () => { const c = byCode.get(norm($('q').value)); if (c) show(c); try { localStorage.setItem(KEY + '-cost', $('showCost').checked ? '1' : ''); } catch (e) {} });
+
+try { $('showCost').checked = !!localStorage.getItem(KEY + '-cost'); const saved = JSON.parse(localStorage.getItem(KEY) || '[]'); if (saved.length) setCatalogue(saved, false); } catch (e) {}
+$('q').focus();
+}
+</script>
 </body>
 </html>
